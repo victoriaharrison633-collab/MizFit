@@ -87,10 +87,14 @@ middleware. **Password policy: minimum 12 characters with at least one uppercase
 letter, one number, and one symbol.** Enforced server-side on signup and on reset; the exact number
 **12** appears verbatim in the signup and reset UI copy. Stated once in `SPEC.md` § Password Policy —
 never restate it with a different number anywhere.
+**Email verification never gates the chat.** A user reaches and completes the whole Mizfit Chat
+immediately after signup, with no blocking wait on the verification email. Verification is enforced at
+exactly one place: `POST /api/mealplan/generate` returns **403** for an unverified user. Do not add a
+verification check to any other route, page, or middleware branch.
 
 **Rule 13 — AI calls are isolated, mocked in dev, and their output is untrusted.**
 Every Anthropic call goes through `src/lib/ai/client.ts`. The model id comes from the `AI_MODEL` env
-var (default `claude-sonnet-5`) — never hardcoded at a call site. **Dev-mode mocking is mandatory and
+var (default `claude-sonnet-5`, stated once in `SPEC.md` § 11) — never hardcoded at a call site. **Dev-mode mocking is mandatory and
 non-negotiable:** when `NODE_ENV !== 'production'` or `AI_MOCK=1`, the client returns fixture data from
 `src/lib/ai/mock-plan.ts` and must not open a network connection to Anthropic. Model output is parsed
 and validated against a Zod schema before anything is written to the database; a malformed response is
@@ -101,6 +105,9 @@ TDEE/BMR, the calorie floor and max-deficit clamps, the extended-target-date rec
 percentage splits, and the grocery gap diff are pure TypeScript, one module each, and are re-validated
 server-side even when the client already computed them for display. A user-supplied calorie override is
 re-clamped on the server; the client's value is never persisted as-is.
+**All date math is UTC dates only, never timestamps** — no local-timezone conversion in the database,
+the server, or the client. `week_start_date` is the next Sunday on or after the current UTC date
+(`SPEC.md` § 4.11).
 
 **Rule 15 — The chat is templated copy plus structured controls, not NLP.**
 Every "AI message" bubble is app-authored template copy, not a model generation. Every user response is
@@ -126,22 +133,20 @@ a deferred feature seems needed to make something else work, flag it rather than
 | Framework | Next.js, App Router | 15.5.x |
 | Language | TypeScript | 5.7, `strict: true` |
 | Database / Auth / Storage | Supabase (Postgres) | RLS on every table; `@supabase/ssr` cookie sessions |
-| Styling | Tailwind CSS | Warm Earth tokens only (below) |
-| UI components | shadcn/ui | Themed to the Warm Earth palette |
+| Styling | Tailwind CSS | Warm Earth tokens only (`SPEC.md` § 11) |
+| UI components | shadcn/ui | Themed to the Warm Earth palette (`SPEC.md` § 11) |
 | Rate limiting | Upstash Redis | `@upstash/ratelimit` |
 | Transactional email | Resend | Password reset + email verification |
-| AI | Anthropic API | Model id from `AI_MODEL` (default `claude-sonnet-5`) |
+| AI | Anthropic API | Model id from the `AI_MODEL` env var — see Rule 13 |
 | Validation | Zod | Every API boundary |
 | Error monitoring | Sentry | Optional (`SENTRY_DSN`); scrub PII before send |
 | Deploy | Vercel | Desktop browser is the demo target |
 
-**Palette (Warm Earth — the PRD's "Fresh Sage" is superseded and must be disregarded):**
-coral `#D85A30` · amber `#EF9F27` · cream background `#fdf8f4` · text `#2C2C2A`.
+**Palette:** Warm Earth. The four token values are stated once in `SPEC.md` § 11 and are not repeated
+here. The PRD's "Fresh Sage" palette is superseded and must be disregarded.
 
-**Env vars**
-- REQUIRED — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`
-- FEATURE — `ANTHROPIC_API_KEY`, `AI_MODEL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `RESEND_API_KEY`
-- OPTIONAL — `SENTRY_DSN`, `AI_MOCK`
+**Env vars** — the three tiers (REQUIRED / FEATURE / OPTIONAL) and their exact names are stated once in
+`SPEC.md` § 11 and are not repeated here. Rule 11 governs which of them are server-only.
 
 ---
 
@@ -179,7 +184,7 @@ anywhere in this build** — every authenticated user gets full feature access. 
 `if (tier === 'free')` guards. Tier limit numbers live in the single PLANS table in `SPEC.md` and are
 never restated in another file.
 
-**AI model id + mandatory dev mocking.** Model id from `AI_MODEL`, default `claude-sonnet-5`.
+**AI model id + mandatory dev mocking.** Model id from `AI_MODEL` (Rule 13).
 Meal-plan generation (and day regeneration) is the *only* code path that calls Anthropic in this build.
 Dev mode returns the mock and never calls the real API — cost control, non-negotiable (Rule 13).
 
@@ -194,27 +199,32 @@ pantry entry, and real-time substitution are all deferred per `SPEC.md` (Rule 15
 1. **Auth** — signup, login, logout, forgot password, reset password, callback. Standard form, server
    routes, 12-character password policy.
 2. **Profile / TDEE onboarding** — demographics, activity level, Mifflin-St Jeor BMR → TDEE → required
-   deficit → clamped calorie target, estimated-completion-date recompute, diet methodology,
-   `servings_per_meal`.
-3. **Mizfit Chat** — one continuous templated conversation: welcome → demographics + TDEE → calorie
-   confirm/override → servings → diet methodology chips → pantry confirmation → cuisine chips →
-   "Generate my week".
+   deficit → clamped calorie target, estimated-completion-date recompute, dietary exclusions, diet
+   methodology, `servings_per_meal`.
+3. **Mizfit Chat** — one continuous templated conversation, the full 11-step sequence in `SPEC.md`
+   § 3.1: welcome → demographics + TDEE → calorie confirm/override → servings → dietary-exclusion chips
+   → diet methodology chips → pantry confirmation → cuisine chips → "Generate my week" → **review
+   (step 10)** → **grocery (step 11)**. Steps 10 and 11 happen *inside the chat stream*, not on
+   standalone pages — features 6 and 7 below are those two steps, not separate surfaces.
 4. **Pantry** — 54 baseline items auto-seeded at signup; list, add, edit, delete; expiry-aware ordering
    with `NULL` expiry excluded from spoilage priority.
-5. **Meal-plan generation** — one AI call per week; Sun–Sat; the methodology's macro schedule applied as
-   percentages of the personalised calorie target; spoilage-first pantry usage; cuisine-preference bias;
-   a single breakfast/lunch/snack per day plus **3 substantively unique supper options** per day.
-6. **Day-by-day review** — expandable day cards, select a supper option, approve the day, or regenerate
-   the whole day (all four slots, clearing any prior selection).
-7. **Grocery gap list** — what the week's approved plan needs that the pantry does not have, including
-   `OPTIONS:` supporting items, shown once every day has an approved supper selection.
+5. **Meal-plan generation** — one AI call per week; Sun–Sat; a single breakfast/lunch/snack per day plus
+   **3 substantively unique supper options** per day. When constraints compete, resolve them in the
+   numbered precedence order in `SPEC.md` § 8.6a — that list is the sole authority on priority, and this
+   file does not restate it.
+6. **Day-by-day review** — **chat step 10** (§ 3.1), rendered in the chat stream: expandable day cards,
+   select a supper option, approve the day, or regenerate the whole day (all four slots, clearing any
+   prior selection).
+7. **Grocery gap list** — **chat step 11** (§ 3.1), rendered in the chat stream: what the week's approved
+   plan needs that the pantry does not have, including `OPTIONS:` supporting items, shown once every day
+   has an approved supper selection.
 
 ## DEFERRED — Not Part of This Build
 
 **Tail prompts:** Stripe / billing enforcement · Legal & GDPR pages · Polish (including mobile
 responsive breakpoints) · Testing & CI/CD.
 
-**Also deferred (Phase 2–4, listed in `SPEC.md` § Out of Scope):** Keto/Vegan methodologies, 2-person
+**Also deferred (Phase 2–4, listed in `SPEC.md` § 12 Explicitly Out of Scope):** Keto/Vegan methodologies, 2-person
 household accounts, photo & receipt pantry scanning, exercise tracking, Apple Health / Google Health
 Connect, grocery store API integrations, push notifications, free-text NLP chat parsing, the chat
 scope-guardrail system prompt, the cross-app chat FAB, real-time ingredient substitution, the weekly
