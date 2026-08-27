@@ -160,7 +160,7 @@
 
 *Other three methodologies — NOT covered by the original prompt (it's carb-cycling-only). Proposed defaults, flagged for Greg to confirm/adjust rather than treated as extracted fact:*
 - **High Protein:** fixed daily target, no cycling — 45% protein / 25% carbs / 30% fat, every day.
-- **Vegetarian:** no meat, poultry, fish, or seafood; eggs and dairy allowed. Fixed daily target, no cycling — 20% protein / 45% carbs / 60% fat.
+- **Vegetarian:** no meat, poultry, fish, or seafood; eggs and dairy allowed. Fixed daily target, no cycling — 30% protein / 40% carbs / 30% fat.
 - **Pescatarian:** no meat or poultry; fish, seafood, eggs, and dairy allowed. Fixed daily target, no cycling — 30% protein / 40% carbs / 30% fat.
 
 *Food usage priorities (grabbed verbatim):* Prioritize foods closest to spoilage while maintaining meal quality. For high-quantity pantry items, spread usage across multiple days rather than dumping it all in one meal. Avoid repeating the same ingredient as the basis for multiple meals the same day or consecutive suppers. Meals use ONLY ingredients from the pantry, except: a recipe may reference basic supporting items not in the pantry labeled "OPTIONS:" (e.g., "OPTIONS: hamburger buns") — these are not counted toward macros/calories and instead flow into the grocery gap list. Total ingredient usage across the whole week's plan must not exceed what's in the pantry.
