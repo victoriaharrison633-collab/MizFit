@@ -19,24 +19,32 @@ Suggested resolution.
 
 2. Produce a FILE LIST for the whole build, grouped by the prompt that creates
 each file. It must include: the security utilities (rate limiting, ownership,
-API handler), all six auth routes, the pantry module, the meal-plan generation
-module (including the AI client and its dev-mode mock), the grocery-list
-module, and the workspace/household schema groundwork. State the exact route
-paths for auth and for the four feature areas — they must match what later
-prompts create, byte for byte.
+API handler), all six auth routes, the profile/onboarding module (TDEE
+calorie calculation, diet methodology), the Mizfit Chat UI shell and its
+structured steps (demographics, calorie confirm/override, pantry
+confirmation, cuisine preference chips), the pantry module, the meal-plan
+generation module (including the AI client, its dev-mode mock, and cuisine
+preferences as an input), the grocery-list module, and the workspace/
+household schema groundwork. State the exact route paths for auth and for
+every feature area above — they must match what later prompts create, byte
+for byte.
 
 3. Write CLAUDE.md as a committed file. It contains the 16 standing rules, the
 pinned stack table, the schema-ownership rule (a table used by two or more
 features belongs to Prompt 3; a table used by one belongs to that feature's
-prompt), and this app's specifics: one account type via the workspace pattern,
-tiers documented but not billing-enforced in this build, AI model id from the
-`AI_MODEL` env var with dev-mode mocking mandatory, and the four Phase 1
-features (pantry, meal-plan generation, day-by-day approve/regenerate,
-grocery gap list) with the tail (Stripe, Legal/GDPR, Polish, Testing/CI)
-explicitly marked DEFERRED — not part of this build.
+prompt), and this app's specifics: one account type via the workspace
+pattern, tiers documented but not billing-enforced in this build, AI model id
+from the `AI_MODEL` env var with dev-mode mocking mandatory, the chat
+interaction model (templated AI copy + inline structured taps/inputs, NOT
+free-text NLP — that stays deferred per the spec), and the Phase 1 feature
+set (profile/TDEE onboarding, Mizfit Chat steps, pantry, meal-plan
+generation, day-by-day approve/regenerate, grocery gap list) with the tail
+(Stripe, Legal/GDPR, Polish, Testing/CI) explicitly marked DEFERRED — not
+part of this build.
 
 4. Write SPEC.md as a committed file: the App Specification above, expanded
-with the data model (workspaces, workspace_members, pantry_items, meal_plans,
+with the data model (workspaces, workspace_members, profiles with its TDEE
+fields, pantry_items, meal_plans with its cuisine_preferences array,
 meal_plan_days, grocery_gap_items), the full route list, and the tier limits
 as a single PLANS table that later prompts reference rather than restate.
 
@@ -53,9 +61,10 @@ End with: "Spec validated. N gaps flagged. CLAUDE.md and SPEC.md written."
 
 ### Checkpoint 1
 - [ ] `CLAUDE.md` and `SPEC.md` exist and are committed
-- [ ] The file list names all six auth routes and the four feature route groups, matching SPEC.md exactly
+- [ ] The file list names all six auth routes and every feature area's routes (profile, chat steps, pantry, meal plan, grocery), matching SPEC.md exactly
 - [ ] CLAUDE.md explicitly states the tail (Stripe/Legal/CI/Testing) is deferred for this build
 - [ ] CLAUDE.md states the AI dev-mode mock requirement explicitly
+- [ ] CLAUDE.md states the chat interaction model is structured taps/inputs, not free-text NLP
 - [ ] SPEC.md's PLANS table appears exactly once and tier limits aren't restated elsewhere
 - [ ] pantry_items and meal_plans are flagged as core-spine tables (touched by 2+ features)
 - [ ] Gap table has at least one row (zero gaps means it wasn't read carefully)
