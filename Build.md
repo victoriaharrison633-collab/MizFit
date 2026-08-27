@@ -23,11 +23,12 @@ API handler), all six auth routes, the profile/onboarding module (TDEE
 calorie calculation, diet methodology), the Mizfit Chat UI shell and its
 structured steps (demographics, calorie confirm/override, pantry
 confirmation, cuisine preference chips), the pantry module, the meal-plan
-generation module (including the AI client, its dev-mode mock, and cuisine
-preferences as an input), the grocery-list module, and the workspace/
-household schema groundwork. State the exact route paths for auth and for
-every feature area above — they must match what later prompts create, byte
-for byte.
+generation module (including the AI client, its dev-mode mock, cuisine
+preferences as an input, and the 3-supper-options-per-day generation model),
+the grocery-list module, and the workspace/household schema groundwork.
+State the exact route paths for auth and for every feature area above,
+including the supper-selection endpoint — they must match what later prompts
+create, byte for byte.
 
 3. Write CLAUDE.md as a committed file. It contains the 16 standing rules, the
 pinned stack table, the schema-ownership rule (a table used by two or more
