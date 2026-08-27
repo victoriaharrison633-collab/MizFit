@@ -9,10 +9,10 @@
 
 **What a user can do (Phase 1 / hackathon scope — 5 things):**
 1. Sign up / log in (standard form — see Mizfit Chat scope note below on why auth stays a form)
-2. Walk through a single continuous **Mizfit Chat** conversation — from right after account creation through their first generated plan — covering: demographics + TDEE calorie target, diet methodology, pantry confirmation (pre-seeded, see baseline pantry below), and cuisine preferences
+2. Walk through a single continuous **Mizfit Chat** conversation — from right after account creation through their first generated plan — covering: demographics + TDEE calorie target, household servings, diet methodology, pantry confirmation (pre-seeded, see baseline pantry below), and cuisine preferences
 3. Choose a diet methodology (Carb Cycling, High Protein, Vegetarian, or Pescatarian) and set a calorie target via a guided TDEE flow (see below), both presented as steps inside the chat
-4. Generate an AI weekly meal plan (Sun–Sat) that prioritizes near-expiry pantry items, follows the chosen methodology's macro schedule, and reflects the cuisine preferences picked in step 2 — displayed inline in the chat
-5. Review the plan day-by-day inside the chat; approve a day or regenerate it, then see a grocery gap list — what's needed to complete the week's plan that isn't already in the pantry
+4. Generate an AI weekly meal plan (Sun–Sat) that prioritizes near-expiry pantry items, follows the chosen methodology's macro schedule, and reflects the cuisine preferences picked in step 2 — displayed inline in the chat. Breakfast, lunch, and snack are single options per day; **supper has 3 options per day, and the user picks one.** All meals scale to the servings count set in step 2.
+5. Review the plan day-by-day inside the chat; select a supper option and approve the day, or regenerate the whole day, then see a grocery gap list — what's needed to complete the week's plan that isn't already in the pantry
 
 **Mizfit Chat (Phase 1 hackathon scope):** Per PRD Section 5.16, the product vision is a persistent conversational UI replacing form wizards app-wide, with real free-text NLP parsing and a scope guardrail for off-topic messages. For this build, we're implementing the **same visual/UX pattern with lower build risk**, and treating it as additive groundwork rather than a simplified stand-in:
 - Chat bubble UI (AI messages left, user responses right), Warm Earth palette (not the "Fresh Sage" reference in the PRD's chat section — that predates the palette finalization and should be disregarded)
@@ -21,7 +21,7 @@
 - Each step's expected answer shape is defined once (e.g. "this step expects `{activity_level: enum}`") so the input mechanism (tap vs. future free text) stays decoupled from what the step does with the answer — this is what makes adding real NLP later additive instead of a rewrite.
 - Each step writes its answer to the DB immediately on capture (not just at the end), so a page refresh mid-flow can resume from wherever the user left off rather than restarting — important resilience for a live demo.
 - Auth (signup/login) stays a standard form, not a chat step — password fields need real autofill/password-manager support and Rule 12 requires server-side auth routes regardless of how the surrounding UI looks. The chat begins immediately after account creation.
-- Sequence: welcome message → demographics + TDEE (age, biological sex, height, weight, goal, target date, activity level via inline inputs) → calorie target confirm/override (see below) → diet methodology chips (Carb Cycling / High Protein / Vegetarian / Pescatarian) → pantry confirmation (editable checklist of the 54 baseline items, add/remove inline — no free text) → cuisine preference chips (Italian, Mexican, Asian, Mediterranean, American comfort — multi-select, per PRD step 4) → "Generate my week" button triggers the one real AI call → plan displays as expandable day cards with Approve/Regenerate buttons → grocery gap list displayed inline at the end.
+- Sequence: welcome message → demographics + TDEE (age, biological sex, height, weight, goal, target date, activity level via inline inputs) → calorie target confirm/override (see below) → **servings per meal** (numeric input, default 1 — "How many people are you cooking for?"; applies uniformly to every meal in the plan, no per-meal-type variation, no cross-day leftover tracking) → diet methodology chips (Carb Cycling / High Protein / Vegetarian / Pescatarian) → pantry confirmation (editable checklist of the 54 baseline items, add/remove inline — no free text) → cuisine preference chips (Italian, Mexican, Asian, Mediterranean, American comfort — multi-select, per PRD step 4) → "Generate my week" button triggers the one real AI call → plan displays as expandable day cards, each showing breakfast/lunch/snack plus 3 tappable supper-option cards (name, ingredients, macros) → user taps a supper option then taps Approve, or taps Regenerate for a fresh version of the whole day (breakfast/lunch/snack/all 3 supper options) → grocery gap list displayed inline at the end, once every day has an approved supper selection.
 
 **Baseline pantry (auto-seeded on account creation):** Every new account gets the same fixed list of 54 `pantry_items` — deliberately generous so a judge/reviewer can immediately generate a real, varied weekly meal plan without doing any manual pantry entry first. `expiry_date` is computed at seed time as `CURRENT_DATE + N days` per the offsets below; `NULL` = permanent staple, excluded from spoilage-priority sorting since there's nothing to prioritize against. Same list for every account regardless of chosen diet methodology. This seeding is part of the `handle_new_user` trigger (Prompt 3) — same atomic transaction that creates profile + workspace + workspace_members + trial subscription, not a separate insert the app has to remember to call.
 
@@ -114,7 +114,7 @@
 | Ketchup | 1 | bottle |
 | Dijon mustard | 1 | jar |
 
-**Explicitly OUT OF SCOPE for this build** (documented for later, not built now): Keto/Vegan methodologies, 2-person household accounts, photo/receipt pantry scanning, exercise tracking, Apple Health / Google Health Connect, Stripe billing enforcement, grocery store API integrations, push notifications, legal/GDPR pages, CI/CD pipeline, automated tests, free-text NLP chat parsing, the chat scope-guardrail system prompt, the persistent cross-app chat FAB, real-time ingredient substitution via chat, and mobile-responsive breakpoints (falls under the Polish tail phase, already deferred — demo target is desktop browser via Vercel; nothing about building on Next.js/Supabase now blocks a dedicated mobile app or a later responsive/PWA pass, since the API routes and schema are reusable by any client). These are Phase 2–4 per the product roadmap, not cut for good.
+**Explicitly OUT OF SCOPE for this build** (documented for later, not built now): Keto/Vegan methodologies, 2-person household accounts, photo/receipt pantry scanning, exercise tracking, Apple Health / Google Health Connect, Stripe billing enforcement, grocery store API integrations, push notifications, legal/GDPR pages, CI/CD pipeline, automated tests, free-text NLP chat parsing, the chat scope-guardrail system prompt, the persistent cross-app chat FAB, real-time ingredient substitution via chat, mobile-responsive breakpoints (falls under the Polish tail phase, already deferred — demo target is desktop browser via Vercel; nothing about building on Next.js/Supabase now blocks a dedicated mobile app or a later responsive/PWA pass, since the API routes and schema are reusable by any client), the weekly pre-selection/validation workflow, interactive per-day leftover confirmation, AI-assisted online recipe validation/star-marking, and Word/.docx export. These are Phase 2–4 per the product roadmap, not cut for good.
 
 **Tiers (documented, NOT enforced in this build):** Free — 1 full week of planning/month. Pro ~$24.99/mo — 15 pantry photo uploads/mo (N/A this build, no photo feature yet). Elite ~$35/mo — unlimited photos + receipt scanning (N/A this build). Every authenticated user gets full feature access in this build; no subscription gate is enforced. A `subscriptions` table and a `PLANS` constant are still created now so Stripe wiring later is additive, not a rebuild.
 
@@ -139,14 +139,45 @@
 - Auth: `/api/auth/signup`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/forgot-password`, `/api/auth/reset-password`, `/api/auth/callback`
 - Profile/onboarding: `PATCH /api/profile` (demographics, activity level, calorie target, diet methodology — the chat's structured steps call this incrementally, not as one final submit)
 - Pantry: `GET /api/pantry`, `POST /api/pantry`, `PATCH /api/pantry/[itemId]`, `DELETE /api/pantry/[itemId]`
-- Meal plan: `POST /api/mealplan/generate` (body includes `cuisine_preferences: string[]`), `GET /api/mealplan/[planId]`, `POST /api/mealplan/[planId]/days/[dayId]/approve`, `POST /api/mealplan/[planId]/days/[dayId]/regenerate`
+- Meal plan: `POST /api/mealplan/generate` (body includes `cuisine_preferences: string[]`), `GET /api/mealplan/[planId]`, `POST /api/mealplan/[planId]/days/[dayId]/select-supper` (body: `{ supper_option_index: 0|1|2 }`), `POST /api/mealplan/[planId]/days/[dayId]/approve` (400 if no supper option selected yet), `POST /api/mealplan/[planId]/days/[dayId]/regenerate` (regenerates breakfast/lunch/snack and all 3 supper options fresh, clears any prior selection)
 - Grocery: `GET /api/grocery-list/[planId]`
 - Health: `GET /api/health`
 - No `/api/chat/message` in this build — deferred with the free-text NLP layer above.
 
-**AI feature:** Yes — meal plan generation is the core differentiator, and the only endpoint that calls the Anthropic API in this build. It takes the pantry, diet methodology, calorie/macro target, and the cuisine preferences selected in the chat as input. Dev mode MUST return mocked plan data and never call the real Anthropic API (cost control, non-negotiable). Carb-cycling macro schedule and spoilage-priority logic:
+**AI feature:** Yes — meal plan generation is the core differentiator, and the only endpoint that calls the Anthropic API in this build. Dev mode MUST return mocked plan data and never call the real Anthropic API (cost control, non-negotiable). Extracted and adapted from Greg's original carb-cycling meal-planning prompt:
 
-> [GREG — paste your existing detailed carb-cycling / spoilage-priority prompt here verbatim. This becomes the exact instruction the AI client hands to the model, so it needs exact values, not a description.]
+*Carb Cycling macro schedule (exact values, grab verbatim) — applies as percentages of the user's personalized `calorie_target` from the TDEE flow, NOT a fixed calorie number:*
+
+| Day | Type | Carbs | Protein | Fat |
+|---|---|---|---|---|
+| Sunday | High | 45–50% | 25–30% | 20–25% |
+| Monday | Mid | 30–35% | 30–35% | 30–35% |
+| Tuesday | Low | 10–15% | 40–45% | 35–45% |
+| Wednesday | High | 45–50% | 25–30% | 20–25% |
+| Thursday | Mid | 30–35% | 30–35% | 30–35% |
+| Friday | Low | 10–15% | 40–45% | 35–45% |
+| Saturday | Low | 10–15% | 40–45% | 35–45% |
+
+*Other three methodologies — NOT covered by the original prompt (it's carb-cycling-only). Proposed defaults, flagged for Greg to confirm/adjust rather than treated as extracted fact:*
+- **High Protein:** fixed daily target, no cycling — 35% protein / 35% carbs / 30% fat, every day.
+- **Vegetarian:** no meat, poultry, fish, or seafood; eggs and dairy allowed. Fixed daily target, no cycling — 30% protein / 40% carbs / 30% fat.
+- **Pescatarian:** no meat or poultry; fish, seafood, eggs, and dairy allowed. Fixed daily target, no cycling — 30% protein / 40% carbs / 30% fat.
+
+*Food usage priorities (grabbed verbatim):* Prioritize foods closest to spoilage while maintaining meal quality. For high-quantity pantry items, spread usage across multiple days rather than dumping it all in one meal. Avoid repeating the same ingredient as the basis for multiple meals the same day or consecutive suppers. Meals use ONLY ingredients from the pantry, except: a recipe may reference basic supporting items not in the pantry labeled "OPTIONS:" (e.g., "OPTIONS: hamburger buns") — these are not counted toward macros/calories and instead flow into the grocery gap list. Total ingredient usage across the whole week's plan must not exceed what's in the pantry.
+
+*Assumed-always-available seasonings:* the tracked no-expiry dry staples (salt, black pepper, garlic powder, onion powder, dried oregano, dried basil) PLUS this generic additional set, assumed on hand and exempt from pantry depletion tracking entirely (not modeled as consumable quantities): paprika, ground cumin, chili powder, Italian seasoning, curry powder, ground cinnamon, ground ginger, crushed red pepper, bay leaves, Cajun/Creole seasoning, sesame seeds. (Adapted from Greg's original — his personal Penzeys-brand spice list was dropped in favor of generic names, since this is a generic product, not built around one household's cabinet.)
+
+*Supper: 3 options, must be substantively unique (grabbed verbatim):* each of the 3 options must feature either a different main protein (chicken vs. pork vs. shrimp) or a completely different cuisine/preparation style — different cooking method alone is not sufficient ("Blackened Chicken Thighs" vs. "Grilled Chicken Thighs" is invalid; "Blackened Chicken Thighs" vs. "Garlic Shrimp Pasta" vs. "Thai Chicken Curry" is valid).
+
+*Cuisine preference bias (new — not in the original prompt):* supper options should lean toward the cuisines selected in the chat's cuisine-chip step, while still satisfying the uniqueness rule above (three unique options can still all draw from the selected cuisines — uniqueness is about protein/prep, not abandoning the cuisine preference).
+
+*Week-level variety guardrail (adapted from the original's per-day version, since only supper has multiple options in this build):* no single breakfast or lunch recipe should repeat more than 2 times across the 7-day week.
+
+*Prep instructions:* detailed enough for someone to actually follow. For any frozen protein (the baseline pantry marks proteins as frozen, no-expiry), include a thaw-time reminder (e.g., "Thaw chicken breast overnight in the refrigerator before cooking").
+
+*Servings:* every meal (breakfast, lunch, snack, and all 3 supper options) scales to the user's `servings_per_meal` setting from onboarding. No cross-day leftover tracking or leftover-confirmation loop — that was a feature of the original prompt's interactive per-day session model, which doesn't fit generating the full week in one call.
+
+*Explicitly dropped from the original prompt, not carried forward:* the fixed 1,200 kcal/day limit (replaced by the personalized TDEE `calorie_target`), the ingredient-specific handling notes tied to Greg's own former inventory (protein powder, slivered almonds — none of these are in the new baseline pantry), the weekly pre-selection/validation workflow (Step 5B), the interactive leftover-confirmation loop between days, online recipe validation with ★ star-marking, and the Word/.docx export feature.
 
 **Calorie target calculation (Step 3 detail):** Deterministic — NOT an AI/LLM call; reserve AI calls for meal-plan generation only.
 
@@ -158,9 +189,11 @@ Onboarding collects: age, biological sex (male/female/prefer not to say), height
 4. Suggested calorie target = TDEE − deficit, clamped to a floor of 1200 kcal (women/prefer-not-to-say) or 1500 kcal (men), and a max deficit of 1000 kcal/day (~2 lb/week). If the requested target date would require exceeding either clamp, clamp the calorie target instead and recompute an extended target date, shown to the user as: "To keep this safe, we've adjusted your timeline to [date]."
 5. Present the suggested target with: "Do you agree with this target, or would you like to update it yourself?" A user override is run through the same clamp (floor/max-deficit), with a visible warning if the override got adjusted. The estimated completion date recalculates live from whichever calorie target is finally in effect. Presented as a chat bubble with two buttons ("Looks good" / "Let me set my own") — the override path reveals an inline number input, not free text.
 
-**Schema note (profiles table, Prompt 3):** add `age`, `biological_sex`, `height_cm`, `current_weight_lbs`, `goal_weight_lbs`, `target_date`, `activity_level`, `calorie_target`, `daily_deficit`, `estimated_completion_date`. `calorie_target` and `estimated_completion_date` are recomputed (not just stored once) any time the user edits weight, goal, or overrides the calorie number.
+**Schema note (profiles table, Prompt 3):** add `age`, `biological_sex`, `height_cm`, `current_weight_lbs`, `goal_weight_lbs`, `target_date`, `activity_level`, `calorie_target`, `daily_deficit`, `estimated_completion_date`, `diet_methodology` (enum: carb_cycling / high_protein / vegetarian / pescatarian), `servings_per_meal` (int, default 1). `calorie_target` and `estimated_completion_date` are recomputed (not just stored once) any time the user edits weight, goal, or overrides the calorie number.
 
 **Schema note (meal_plans table, Prompt 3 or its feature prompt):** add `cuisine_preferences text[]`, populated from the chat's cuisine-chip step, one array per generated plan (not stored on the profile — it's a per-week choice, not a permanent preference).
+
+**Schema note (meal_plan_days table):** `supper_options JSONB` — array of exactly 3 recipe objects (name, ingredients, instructions, macros), regenerated together as a set. `selected_supper_index smallint NULL` — 0, 1, or 2 once chosen; NULL means the day isn't approvable yet. Breakfast/lunch/snack are single recipe objects, not option arrays.
 
 **Schema note for Prompt 3:** `pantry_items.quantity` must be numeric (not integer) to support fractional amounts like 0.5 lb green beans. `pantry_items.unit` is free text, not an enum — the baseline list alone uses a dozen distinct units (lb, gallon, dozen, head, bag, bottle, jar, can, pack, bulb, container, box, each). `pantry_items.expiry_date` is nullable; NULL means permanent/no-expiry and must be excluded from spoilage-priority sort order, not sorted to the front or back arbitrarily.
 
