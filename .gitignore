@@ -141,3 +141,25 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Environment variables (API keys, Supabase keys, etc — critical, never commit these)
+.env
+.env.local
+.env.*.local
+
+# Vite build output
+dist/
+dist-ssr/
+
+# Claude Code local config (if you don't want session state tracked)
+.claude/
+
+# Vercel
+.vercel
+
+# Supabase local dev
+.supabase/
+
+# OS/editor cruft
+.DS_Store
+*.local
