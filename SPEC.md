@@ -200,7 +200,15 @@ Written by the pantry module, **read by meal-plan generation** → 2+ features �
 | `expiry_date` | date **null** | NULL = permanent staple; **excluded** from spoilage-priority sort, not sorted to either end |
 | `is_frozen` | boolean not null default false | True for the 9 baseline proteins; drives the thaw reminder in prep instructions |
 | `source` | text not null default `seed` | `seed` or `user` |
+| `calories_per_unit` | numeric **null**, default NULL | **Optional Prompt 3b only.** NULL is the normal state |
+| `protein_g_per_unit` | numeric **null**, default NULL | **Optional Prompt 3b only.** NULL is the normal state |
+| `carbs_g_per_unit` | numeric **null**, default NULL | **Optional Prompt 3b only.** NULL is the normal state |
+| `fat_g_per_unit` | numeric **null**, default NULL | **Optional Prompt 3b only.** NULL is the normal state |
 | `created_at` / `updated_at` | timestamptz | |
+
+The four `*_per_unit` nutrition columns are added by the **optional** Prompt 3b (Appendix A) and are
+`NULL` unless its enrichment script has been run. Every other prompt must treat `NULL` as the expected
+default and behave identically when it is — see § 8.11.
 
 Indexes: `(workspace_id)`, `(workspace_id, expiry_date)` — the spoilage-priority query is
 `where workspace_id = $1 and expiry_date is not null order by expiry_date asc`, unioned with the
@@ -545,6 +553,18 @@ in any generated recipe — not in `breakfast`, `lunch`, `snack`, any of the 3 `
 allergen correctness, so the plan view carries the non-medical disclaimer and users are told to check
 recipes themselves.
 
+**Nutrition accuracy — part of the same disclaimer.** Calorie and macro values shown anywhere in a plan
+are **AI-estimated at generation time, not looked up from a nutrition database.** Where optional Prompt
+3b has enriched a pantry item with real USDA / Open Food Facts per-unit data (§ 8.11), recipes using that
+item are *grounded* in real values — but the final recipe's combined macros are still the model's own
+arithmetic over those values, and are **never independently re-verified** by the app.
+
+**One disclaimer area, not two notices.** The plan-review UI renders a **single** disclaimer block
+covering both the allergen/medical point above and this nutrition-accuracy point. It is shown
+**unconditionally** — whether or not Prompt 3b ran, and whether or not any item in the plan is enriched.
+Do **not** write two conditional messages, and do **not** vary the copy based on enrichment state: the
+caveat applies in both cases, and a disclaimer that appears only sometimes trains users to ignore it.
+
 ### 8.3 Food usage priorities (verbatim)
 
 Prioritize foods closest to spoilage while maintaining meal quality. For high-quantity pantry items,
@@ -630,6 +650,23 @@ none are in the new baseline pantry), the weekly pre-selection/validation workfl
 interactive leftover-confirmation loop between days, online recipe validation with ★ star-marking, and
 the Word/.docx export feature.
 
+### 8.11 Optional nutrition grounding (only if Prompt 3b ran)
+
+`pantry_items` carries four nullable nutrition columns (§ 4.6) populated only by the **optional** Prompt
+3b. This is a **soft enhancement with no hard dependency in either direction.**
+
+- **If an item's nutrition data is non-NULL:** include it in the generation prompt as **grounding
+  context** for that ingredient, so the model computes macros against measured values rather than its
+  own estimate.
+- **If it is NULL — the default, and the only case when Prompt 3b is skipped:** generation proceeds
+  **exactly as specified in § 8.1–8.10**, relying on the model's own nutritional estimates. This is not
+  a degraded path; it is the baseline behaviour.
+
+**Prompt 10 must work identically whether or not Prompt 3b ever ran.** Nutrition data never changes the
+precedence order (§ 8.6a), the macro targets, the output schema, or the validation rules — it only
+sharpens the numbers the model reasons with. A mix of enriched and NULL items in the same pantry is
+normal and must be handled per-item, never as an all-or-nothing branch.
+
 ---
 
 ## 9. PLANS — Tier Limits (the single source; later prompts reference, never restate)
@@ -670,7 +707,8 @@ become additive rather than a migration rewrite. See `CLAUDE.md` Rule 5.
 
 **Env vars**
 - REQUIRED: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_APP_URL`
-- FEATURE: `ANTHROPIC_API_KEY`, `AI_MODEL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `RESEND_API_KEY`
+- FEATURE: `ANTHROPIC_API_KEY`, `AI_MODEL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `RESEND_API_KEY`, `USDA_FDC_API_KEY` (optional Prompt 3b only)
+- NON-SECRET, REQUIRED HEADER: `OPEN_FOOD_FACTS_USER_AGENT` — an identifying User-Agent string Open Food Facts' usage guidelines require on every request (e.g. `MizFit/0.1 (contact@example.com)`). Not a credential; it is documented in `.env.example` so the value is not invented per call site. Optional Prompt 3b only.
 - OPTIONAL: `SENTRY_DSN`, `AI_MOCK`
 
 **Design direction: Fresh Sage.** These are the **only** palette values in this build — stated once
@@ -785,6 +823,36 @@ Implements the § 11 palette and the § 11a accessibility requirements (WCAG 2.1
 - `supabase/seed/baseline_pantry.sql` (the 54 rows, § 5)
 - `src/lib/db/queries.ts` (shared typed accessors for spine tables)
 
+### Prompt 3b — Nutrition enrichment — **OPTIONAL — SKIP IF SHORT ON TIME**
+
+> **Nothing depends on this prompt existing.** No other prompt reads its output as a requirement, no
+> route needs it, and no checkpoint elsewhere fails because it was skipped. Skipping it is an expected
+> outcome, not a shortfall. If it is skipped, the four nutrition columns stay `NULL` and generation
+> behaves exactly as § 8.1–8.10 already specify (§ 8.11).
+
+- `supabase/migrations/0009_pantry_nutrition.sql` — adds `calories_per_unit`, `protein_g_per_unit`,
+  `carbs_g_per_unit`, `fat_g_per_unit` to `pantry_items` (all numeric, nullable, default NULL). Additive
+  only; no RLS change, since the columns inherit `pantry_items`' existing policies.
+  **Deliberately numbered 0009, after Prompt 12's `0008_grocery_gap_items.sql`** — so skipping 3b leaves
+  no gap in the migration sequence and Prompt 12's filename never shifts.
+- `src/lib/nutrition/usda.ts` — thin FDC client. **Zod-validates every external response before use**
+  (`CLAUDE.md` Rule 13's untrusted-output discipline applies to third-party APIs too).
+- `src/lib/nutrition/openfoodfacts.ts` — thin Open Food Facts client; sends
+  `OPEN_FOOD_FACTS_USER_AGENT` on every request per their usage guidelines. Zod-validates responses.
+- `scripts/enrich-baseline-pantry.ts` — **one-time dev script**, run manually via
+  `npm run enrich:pantry`. Looks up each of the 54 baseline items (§ 5) and fills the nutrition columns.
+  **Not a web route, not rate-limited, not part of any user-facing flow**, and never invoked by the app
+  at runtime.
+- Additive edits to files owned by earlier prompts: `.env.example` (add `USDA_FDC_API_KEY` and
+  `OPEN_FOOD_FACTS_USER_AGENT`, § 11) and `package.json` (add the `enrich:pantry` script).
+
+**Checkpoint 3b** — exactly one of these two outcomes is required, and **both are passes**:
+- [ ] The enrichment script ran: `npm run enrich:pantry` completes, and at least one of the 54 baseline
+      rows has non-NULL nutrition values; **or**
+- [ ] Explicitly noted **"skipped — deferred"**. This is an acceptable, expected outcome, not a failure.
+- [ ] Either way: `POST /api/mealplan/generate` produces a valid plan, proving Prompt 10 does not depend
+      on 3b having run.
+
 ### Prompt 4 — Security utilities
 - `src/lib/security/rate-limit.ts` (Upstash buckets; fail-open dev / fail-closed prod)
 - `src/lib/security/ownership.ts` (`assertWorkspaceOwnership`, `getActiveWorkspace`)
@@ -843,11 +911,11 @@ Implements the § 11 palette and the § 11a accessibility requirements (WCAG 2.1
 - `src/app/api/mealplan/[planId]/route.ts` (**GET `/api/mealplan/[planId]`**)
 - `src/lib/ai/client.ts` (Anthropic client; model id from `AI_MODEL`; **dev-mode mock gate**)
 - `src/lib/ai/mock-plan.ts` (deterministic 7-day fixture, 3 supper options per day)
-- `src/lib/ai/plan-prompt.ts` (system + user prompt: pantry, spoilage priority, methodology macros, cuisine bias, servings, **dietary exclusions as a hard prohibition (§ 8.2b)**, 3-unique-suppers rule, week-level variety guardrail, thaw reminders, `OPTIONS:` convention)
+- `src/lib/ai/plan-prompt.ts` (system + user prompt: pantry, spoilage priority, methodology macros, cuisine bias, servings, **dietary exclusions as a hard prohibition (§ 8.2b)**, 3-unique-suppers rule, week-level variety guardrail, thaw reminders, `OPTIONS:` convention, and per-item nutrition grounding **only where non-NULL** — § 8.11; behaves identically when Prompt 3b was skipped)
 - `src/lib/ai/plan-schema.ts` (Zod validation of model output before any write)
 - `src/lib/mealplan/generate.ts` (orchestration: snapshot profile → build prompt → call → validate → persist plan + 7 days)
 - `src/components/chat/steps/cuisine-step.tsx`
-- `src/components/chat/steps/generate-step.tsx`
+- `src/components/chat/steps/generate-step.tsx` — renders the **single combined disclaimer block** (§ 8.2b: medical/allergen + nutrition accuracy) wherever a generated plan first appears; shown unconditionally
 
 ### Prompt 11 — Plan review: select supper, approve, regenerate
 - `src/app/api/mealplan/[planId]/days/[dayId]/select-supper/route.ts` (**POST**, body `{ supper_option_index: 0|1|2 }`)
@@ -855,6 +923,7 @@ Implements the § 11 palette and the § 11a accessibility requirements (WCAG 2.1
 - `src/app/api/mealplan/[planId]/days/[dayId]/regenerate/route.ts` (**POST**, regenerates all four slots, clears selection + approval)
 - `src/lib/mealplan/regenerate-day.ts`
 - `src/components/mealplan/day-card.tsx`, `meal-slot.tsx`, `supper-option-card.tsx`, `macro-pills.tsx`, `day-actions.tsx`
+- The plan-review surface must carry the **same single combined disclaimer block** as Prompt 10 (§ 8.2b: medical/allergen + nutrition accuracy) — one shared copy string, one disclaimer area, shown unconditionally. Not a second, differently-worded notice
 
 ### Prompt 12 — Grocery gap list
 - `supabase/migrations/0008_grocery_gap_items.sql` (single-feature table + RLS)

@@ -27,7 +27,7 @@ Frontend	Next.js 15.5.24 (App Router) + TypeScript + Tailwind CSS
 Backend	Next.js 15.5.24 App Router route handlers (TypeScript)
 Database	Supabase (Postgres) with Row-Level Security
 AI	Anthropic Claude API
-Nutrition data	USDA FoodData Central, Open Food Facts
+Nutrition data	USDA FoodData Central, Open Food Facts (optional enrichment — see Prompt 3b)
 Deployment	Vercel
 Getting started
 Prerequisites

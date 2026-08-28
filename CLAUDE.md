@@ -5,6 +5,9 @@ If the two ever conflict: `SPEC.md` wins on product behaviour, `CLAUDE.md` wins 
 Neither may be silently overridden — flag the conflict instead.
 
 Build sequence lives in `BUILD.md`. Core prompts: 1, 2a, 2b, 3, 4, 5, 6, 7. Feature prompts: 8–12.
+**Prompt 3b (nutrition enrichment) is OPTIONAL — SKIP IF SHORT ON TIME.** No other prompt depends on it
+existing; skipping it is an expected outcome, not a shortfall (`SPEC.md` Appendix A, § 8.11). Optional
+is **not** the same as deferred — Rule 16 does not forbid building it.
 Tail prompts (Stripe, Legal/GDPR, Polish, Testing/CI) are **DEFERRED — not part of this build.**
 
 ---
