@@ -1,5 +1,8 @@
 import { withPublicApiHandler } from '@/lib/security/api-handler'
 import { clientEnv, serverEnv } from '@/env'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { provisionWorkspace } from '@/lib/auth/provision'
+import { createClient as createSupabaseClient } from '@supabase/supabase-js'
 
 /**
  * GET /api/health (SPEC.md § 6)
@@ -74,7 +77,46 @@ export async function POST(request: Request) {
     'AI_MOCK',
   ]
 
+  // Walk the demo flow step by step and report which one fails.
+  const steps: Record<string, string> = {}
+  try {
+    const admin = createAdminClient()
+    const probeEmail = `probe-${Date.now()}@mizfit-demo.app`
+    const probePassword = `Pb${crypto.randomUUID()}!aA1`
+
+    const { data: made, error: makeError } = await admin.auth.admin.createUser({
+      email: probeEmail,
+      password: probePassword,
+      email_confirm: true,
+    })
+    steps.createUser = makeError ? `FAILED: ${makeError.message}` : 'ok'
+
+    if (made?.user) {
+      try {
+        const result = await provisionWorkspace(made.user.id, probeEmail)
+        steps.provision = `ok (workspace ${result.workspaceId}, created=${result.created})`
+      } catch (thrown) {
+        steps.provision = `FAILED: ${thrown instanceof Error ? thrown.message : 'unknown'}`
+      }
+
+      const anon = createSupabaseClient(origin, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '')
+      const { error: signInError } = await anon.auth.signInWithPassword({
+        email: probeEmail,
+        password: probePassword,
+      })
+      steps.signIn = signInError ? `FAILED: ${signInError.message}` : 'ok'
+
+      const { count, error: countError } = await admin
+        .from('pantry_items')
+        .select('id', { count: 'exact', head: true })
+      steps.pantryCount = countError ? `FAILED: ${countError.message}` : String(count ?? 0)
+    }
+  } catch (thrown) {
+    steps.walk = `THREW: ${thrown instanceof Error ? thrown.message : 'unknown'}`
+  }
+
   return Response.json({
+    demo_flow_steps: steps,
     // Which of the expected names are actually present in this runtime, and
     // any near-miss names (a stray space or lowercase letter in the key name
     // makes a variable invisible to the app while looking correct in a UI).
