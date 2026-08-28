@@ -2,18 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { MessageCircle, ShoppingBasket } from 'lucide-react'
+import { MessageCircle } from 'lucide-react'
 import { cn, focusRing } from '@/lib/utils'
 
 /**
- * The two surfaces of the app (SPEC.md § 6 page routes): the chat, built by
- * Prompt 7, and the pantry, built by Prompt 9. Both links exist now; neither
- * page does yet.
+ * The chat is the only page surface in this build. The standalone pantry page
+ * is cut for time — the 54 seeded items are shown read-only inside the chat's
+ * pantry step instead. A link to a page that does not exist is dead UI
+ * (CLAUDE.md Rule 16), so there is no Pantry item here until that page is real.
  */
-const NAV_ITEMS = [
-  { href: '/chat', label: 'Chat', icon: MessageCircle },
-  { href: '/pantry', label: 'Pantry', icon: ShoppingBasket },
-] as const
+const NAV_ITEMS = [{ href: '/chat', label: 'Chat', icon: MessageCircle }] as const
 
 /**
  * Primary navigation.

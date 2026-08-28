@@ -4,7 +4,7 @@
 This file carries only the state a fresh session cannot reconstruct from the repo: what is done,
 what was decided along the way, and why. Update it at the end of every prompt.
 
-Last updated: after Prompt 6 · `main` at the Prompt 6 commit
+Last updated: after the demo-spine pass (Prompts 7–12, narrowed) · deploy-ready
 
 ---
 
@@ -20,8 +20,12 @@ Last updated: after Prompt 6 · `main` at the Prompt 6 commit
 | 4 — Security utilities & API foundation | ✅ complete |
 | 5 — Auth: six server routes + form UI | ✅ complete |
 | 6 — App shell, session middleware, health | ✅ complete |
-| **7 — Mizfit Chat UI shell & step engine** | ⬜ **next** |
-| 8–12 | ⬜ not started |
+| 7 — Mizfit Chat UI shell & step engine | ⚠️ **narrowed** — one `chat-shell.tsx` instead of ten files |
+| 8 — Profile / TDEE onboarding | ✅ complete |
+| 9 — Pantry module | ❌ **cut** — no `/pantry` page, no pantry CRUD routes |
+| 10 — Meal-plan generation | ✅ complete (mock path proven; real path built, unproven) |
+| 11 — Plan review | ⚠️ **narrowed** — select + approve; **no day regenerate** |
+| 12 — Grocery gap list | ⚠️ **narrowed** — computed on read, no `grocery_gap_items` table |
 | Tail (Stripe, Legal/GDPR, Polish, Testing/CI) | **DEFERRED — not part of this build** |
 
 `main` == `origin/main`, working tree clean, `npm run check:all` green.
@@ -152,6 +156,31 @@ shell files, `src/lib/chat/{steps,copy,use-chat-flow}.ts`, and the five
   "12 characters" so Checkpoint 5's grep finds it. A module-load guard fails the boot if that sentence
   and `PASSWORD_MIN_LENGTH` ever drift apart.
 
+**The demo-spine pass (Prompts 7–12, built against a one-hour clock)**
+- **What is cut, and it is cut deliberately:** the `/pantry` page and `GET/POST /api/pantry` +
+  `PATCH/DELETE /api/pantry/[itemId]` (the 54 seeded items are shown read-only inside the chat's
+  pantry step); the day `regenerate` route and its UI; `supabase/migrations/0008_grocery_gap_items.sql`
+  and the `grocery_gap_items` table. The Pantry nav item was removed with the page — a link to a 404
+  is dead UI (Rule 16).
+- **The grocery gap is computed on read** in `src/lib/grocery/compute-gap.ts` and returned by
+  `GET /api/grocery-list/[planId]`. Nothing else reads the table, so this is the same answer without a
+  migration — which also means there is no extra migration to push to a hosted database. Persisting it
+  later is additive.
+- **`chat-shell.tsx` is one file** where Appendix A lists a shell, bubble, stream, typing indicator,
+  five control components and a `use-chat-flow` hook. The step registry and answer shapes still live in
+  `src/lib/chat/steps.ts`, so splitting it is mechanical.
+- **`AI_MOCK=1` is the production demo setting.** The mock returns a full 7-day plan with 3 suppers a
+  day and opens no network connection, so the demo needs no Anthropic key and spends nothing. The real
+  path (`src/lib/ai/client.ts` + `plan-prompt.ts`) is built and typechecks but **has never been run
+  against the live API** — flipping `AI_MOCK` off is an untested code path.
+- **The mock's supper trios repeat every third day** (`SUPPERS[dayIndex % 3]`), so days 0, 3 and 6 share
+  a set. Breakfasts, lunches and snacks are all distinct. Worth knowing before demoing the review step.
+- **Verified end to end locally** against the live local stack: signup → demographics (target 1351 kcal,
+  deficit clamped to 1000, completion date extended) → servings → exclusions → methodology → generate
+  (7 days, 3 suppers each, `generation_source: mock`) → select + approve all seven → grocery list of 33
+  items, aggregated by name and unit with `OPTIONS:` extras separated. Approving a day with no supper
+  selected returns 400.
+
 **App shell (Prompt 6)**
 - **Middleware lives at `src/middleware.ts`, not the repository root.** `BUILD.md` says "project root",
   but with a `src` directory Next only picks it up inside `src/` — at the root it is silently ignored,
@@ -237,16 +266,22 @@ and this file.
 
 ---
 
-## Prompt 7 reminders from the rules
+## Deploying to Vercel — what the app needs
 
-- The chat is **templated copy plus structured controls, not NLP** (Rule 15). No free-text input, no
-  intent parsing, no scope-guardrail system prompt, no cross-app FAB. Every "AI message" bubble is
-  app-authored copy from `src/lib/chat/copy.ts` — Prompt 10 owns the only Anthropic call in the build.
-- Each step declares its expected answer shape once (e.g. `{ activity_level: ActivityLevel }`) so a
-  future NLP layer is additive rather than a rewrite.
-- **Each step writes its answer to the database immediately on capture**, and resume position comes
-  from `profiles.onboarding_step`, so a mid-flow refresh continues instead of restarting.
-- Steps 10 (review) and 11 (grocery) render **inside the chat stream**, not on standalone pages. The
-  11-step sequence in `SPEC.md` § 3.1 is the authority on order and on each step's answer shape.
-- Every control is a labelled form input (`SPEC.md` § 11a non-negotiable 3) — the `Input` and
-  `Checkbox` primitives already refuse to compile without a label.
+Environment variables (SPEC.md § 11): the three Supabase keys, `NEXT_PUBLIC_APP_URL` set to the
+deployed URL, **both `UPSTASH_*` values**, and `AI_MOCK=1`.
+
+- **Upstash is not optional in production.** Rate limiting fails CLOSED there (Rule 10), so with the
+  Upstash variables missing every API route answers 429 and nothing works.
+- **The Supabase project must have "Confirm email" OFF.** Signup issues the session directly; with
+  confirmations on, `signUp` returns no session and the route throws a deliberate 500 naming this cause.
+- Set the Supabase *Site URL* to the deployed origin so the password-reset link points at the right host.
+- `supabase db push` applies migrations 0001–0007. There is no 0008 in this build.
+- Without `RESEND_API_KEY` the app still runs; password-reset emails are logged server-side instead of
+  sent, and every other flow is unaffected.
+
+## Where to pick the build back up
+
+In priority order: the pantry module (Prompt 9) so items can be edited, day regeneration (Prompt 11),
+persisting the grocery list (Prompt 12 + its migration), then splitting `chat-shell.tsx` along the
+Appendix A file map. `BUILD.md` Prompt 9–12 text still applies as written.
