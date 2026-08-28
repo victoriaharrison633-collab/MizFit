@@ -51,6 +51,14 @@ export const RATE_LIMIT_BUCKETS = {
     window: '1 h',
     reason: 'Own bucket — each signup seeds a workspace and 54 pantry rows.',
   },
+  'auth:demo': {
+    tokens: 60,
+    window: '1 h',
+    reason:
+      'The demo door. Generous on purpose: reviewers often share one office or ' +
+      'campus IP, and the signup bucket would lock the whole building out after ' +
+      'five clicks. Still capped, because it creates accounts.',
+  },
   'auth:forgot-password': {
     tokens: 5,
     window: '1 h',

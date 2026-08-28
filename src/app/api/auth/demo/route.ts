@@ -26,9 +26,10 @@ import { clientEnv } from '@/env'
  * seeded pantry is the real one.
  */
 export const POST = withPublicApiHandler(
-  // Shares the signup bucket: this creates accounts, so it gets the same
-  // per-IP ceiling that stops someone scripting thousands of them (Rule 10).
-  { method: 'POST', rateLimit: 'auth:signup' },
+  // Its own bucket, not the signup one: reviewers frequently share a single
+  // office or campus IP, and a five-per-hour ceiling locks all of them out
+  // after the first few clicks. Still capped — it creates accounts (Rule 10).
+  { method: 'POST', rateLimit: 'auth:demo' },
   async (ctx) => {
     const suffix = crypto.randomUUID().slice(0, 8)
     const email = `demo-${suffix}@mizfit-demo.app`
