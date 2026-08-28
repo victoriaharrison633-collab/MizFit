@@ -22,7 +22,7 @@ Last updated: after the demo-spine pass (Prompts 7–12, narrowed) · deploy-rea
 | 6 — App shell, session middleware, health | ✅ complete |
 | 7 — Mizfit Chat UI shell & step engine | ⚠️ **narrowed** — one `chat-shell.tsx` instead of ten files |
 | 8 — Profile / TDEE onboarding | ✅ complete |
-| 9 — Pantry module | ❌ **cut** — no `/pantry` page, no pantry CRUD routes |
+| 9 — Pantry module | ✅ complete — page + all four CRUD routes (2 components, not 4) |
 | 10 — Meal-plan generation | ✅ complete (mock path proven; real path built, unproven) |
 | 11 — Plan review | ⚠️ **narrowed** — select + approve; **no day regenerate** |
 | 12 — Grocery gap list | ⚠️ **narrowed** — computed on read, no `grocery_gap_items` table |
@@ -157,11 +157,10 @@ shell files, `src/lib/chat/{steps,copy,use-chat-flow}.ts`, and the five
   and `PASSWORD_MIN_LENGTH` ever drift apart.
 
 **The demo-spine pass (Prompts 7–12, built against a one-hour clock)**
-- **What is cut, and it is cut deliberately:** the `/pantry` page and `GET/POST /api/pantry` +
-  `PATCH/DELETE /api/pantry/[itemId]` (the 54 seeded items are shown read-only inside the chat's
-  pantry step); the day `regenerate` route and its UI; `supabase/migrations/0008_grocery_gap_items.sql`
-  and the `grocery_gap_items` table. The Pantry nav item was removed with the page — a link to a 404
-  is dead UI (Rule 16).
+- **What is cut, and it is cut deliberately:** the day `regenerate` route and its UI;
+  `supabase/migrations/0008_grocery_gap_items.sql` and the `grocery_gap_items` table.
+- **The pantry module was built after the first pass** (see below), so the Pantry nav item is back and
+  `/pantry` is real. The chat's own pantry step stays read-only — editing happens on the page.
 - **The grocery gap is computed on read** in `src/lib/grocery/compute-gap.ts` and returned by
   `GET /api/grocery-list/[planId]`. Nothing else reads the table, so this is the same answer without a
   migration — which also means there is no extra migration to push to a hosted database. Persisting it
@@ -180,6 +179,18 @@ shell files, `src/lib/chat/{steps,copy,use-chat-flow}.ts`, and the five
   (7 days, 3 suppers each, `generation_source: mock`) → select + approve all seven → grocery list of 33
   items, aggregated by name and unit with `OPTIONS:` extras separated. Approving a day with no supper
   selected returns 400.
+
+**Pantry (Prompt 9)**
+- All four routes exist at the § 6 paths: `GET`/`POST /api/pantry`, `PATCH`/`DELETE
+  /api/pantry/[itemId]`. Both `[itemId]` routes share one `loadResources` that runs
+  `assertWorkspaceOwnership`, so another workspace's item is a 404 on both — verified.
+- **`ExpiryBadge` states every condition in words** — "Use today", "Use tomorrow", "3 days left",
+  "Expired 2 days ago", "Staple", "Frozen" — with an icon, and underlines the urgent ones. There is no
+  red in this palette to lean on, so nothing here depends on colour (SPEC.md § 11a).
+- A NULL expiry renders as **Staple**, never as a date comparison, and the page keeps the two groups in
+  separate sections so a staple is never ranked against a date (SPEC.md § 4.6).
+- Hand-added rows get `source: 'user'`; the 54 seeded rows keep `source: 'seed'`.
+- Two components (`pantry-manager`, `expiry-badge`) where Appendix A lists four.
 
 **App shell (Prompt 6)**
 - **Middleware lives at `src/middleware.ts`, not the repository root.** `BUILD.md` says "project root",
@@ -282,6 +293,6 @@ deployed URL, **both `UPSTASH_*` values**, and `AI_MOCK=1`.
 
 ## Where to pick the build back up
 
-In priority order: the pantry module (Prompt 9) so items can be edited, day regeneration (Prompt 11),
+In priority order: day regeneration (Prompt 11),
 persisting the grocery list (Prompt 12 + its migration), then splitting `chat-shell.tsx` along the
 Appendix A file map. `BUILD.md` Prompt 9–12 text still applies as written.
