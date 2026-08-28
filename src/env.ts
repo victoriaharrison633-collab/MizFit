@@ -18,22 +18,28 @@ import { z } from 'zod'
 const DEFAULT_AI_MODEL = 'claude-sonnet-5'
 
 /**
- * Trailing slashes are stripped from every URL.
+ * Reduced to a bare origin — scheme + host + port, nothing else.
  *
- * A `NEXT_PUBLIC_SUPABASE_URL` ending in `/` produces `https://host//auth/v1/...`,
- * which Supabase's gateway rejects with "Invalid path specified in request URL"
- * — and because the login route maps every auth failure to one generic message,
- * that looks like "wrong password" rather than a misconfigured URL. It cost this
- * build a deployment's worth of debugging, so it is normalised here instead of
- * being left to whoever pastes the value into a dashboard.
+ * `@supabase/supabase-js` appends its own paths (`/auth/v1/...`, `/rest/v1/...`)
+ * to whatever it is given, so anything extra on the end produces a URL Supabase
+ * answers with "Invalid path specified in request URL". Both shapes are easy to
+ * paste into a dashboard by accident:
+ *
+ *   https://ref.supabase.co/         -> https://ref.supabase.co//auth/v1/...
+ *   https://ref.supabase.co/rest/v1  -> https://ref.supabase.co/rest/v1/auth/v1/...
+ *
+ * Neither is recoverable at the call site, and the login route maps every auth
+ * failure to one generic message, so a misconfigured URL presents as "wrong
+ * password" rather than as configuration. That combination cost this build most
+ * of a deployment window, so the value is normalised here, once.
  */
-const urlWithoutTrailingSlash = z.url().transform((value) => value.replace(/\/+$/, ''))
+const originOnly = z.url().transform((value) => new URL(value).origin)
 
 const clientSchema = z.object({
   // REQUIRED
-  NEXT_PUBLIC_SUPABASE_URL: urlWithoutTrailingSlash,
+  NEXT_PUBLIC_SUPABASE_URL: originOnly,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  NEXT_PUBLIC_APP_URL: urlWithoutTrailingSlash,
+  NEXT_PUBLIC_APP_URL: originOnly,
 })
 
 const serverSchema = z.object({
