@@ -45,7 +45,11 @@ export const POST = withPublicApiHandler(
 
     if (createError) {
       throw new ApiError('INTERNAL', {
-        publicMessage: 'The demo could not start. Please try again in a moment.',
+        // TEMPORARY DEBUG — this deliberately returns the database's own error
+        // to the client, which Rule 7 forbids. It is here because the hosted
+        // failure could not be reproduced locally and the server logs were not
+        // reachable. REVERT THIS as soon as the cause is known.
+        publicMessage: `DEBUG createUser: ${createError.message}`,
         detail: `demo createUser failed: ${createError.message}`,
         cause: createError,
       })
@@ -53,14 +57,24 @@ export const POST = withPublicApiHandler(
 
     // Idempotent: does nothing if the trigger already provisioned this user.
     if (created?.user) {
-      await provisionWorkspace(created.user.id, created.user.email ?? email)
+      try {
+        await provisionWorkspace(created.user.id, created.user.email ?? email)
+      } catch (thrown) {
+        // TEMPORARY DEBUG — revert with the others.
+        throw new ApiError('INTERNAL', {
+          publicMessage: `DEBUG provision: ${thrown instanceof Error ? thrown.message : 'unknown'}`,
+          detail: `demo provisioning failed: ${thrown instanceof Error ? thrown.message : 'unknown'}`,
+          cause: thrown,
+        })
+      }
     }
 
     const { error: signInError } = await ctx.db.auth.signInWithPassword({ email, password })
 
     if (signInError) {
       throw new ApiError('INTERNAL', {
-        publicMessage: 'The demo could not start. Please try again in a moment.',
+        // TEMPORARY DEBUG — see above. Revert with the other one.
+        publicMessage: `DEBUG signIn: ${signInError.message}`,
         detail: `demo sign-in failed: ${signInError.message}`,
         cause: signInError,
       })
