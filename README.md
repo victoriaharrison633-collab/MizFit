@@ -23,8 +23,8 @@ Grocery gap lists — auto-generated from your plan minus what's already on hand
 Privacy by design — pantry photo and receipt images are processed and immediately deleted, never stored
 Tech stack
 Layer	Technology
-Frontend	React + Vite + Tailwind CSS
-Backend	Node.js + Express
+Frontend	Next.js 15.5.24 (App Router) + TypeScript + Tailwind CSS
+Backend	Next.js 15.5.24 App Router route handlers (TypeScript)
 Database	Supabase (Postgres) with Row-Level Security
 AI	Anthropic Claude API
 Nutrition data	USDA FoodData Central, Open Food Facts

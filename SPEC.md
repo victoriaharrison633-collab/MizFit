@@ -56,8 +56,9 @@ with real free-text NLP parsing and a scope guardrail for off-topic messages. Fo
 implement the **same visual/UX pattern with lower build risk**, treating it as additive groundwork
 rather than a simplified stand-in.
 
-- Chat bubble UI (AI messages left, user responses right), **Warm Earth** palette. The "Fresh Sage"
-  palette in the PRD's chat section predates palette finalization and must be disregarded.
+- Chat bubble UI (AI messages left, user responses right), **Fresh Sage** palette (§ 11). The PRD's
+  chat section already uses Fresh Sage and agrees with this build; the interim "Warm Earth" palette is
+  superseded and must be disregarded.
 - Every step's "AI message" is **templated copy the app displays**, not a live model generation — this
   matches the PRD's own CHAT-8 rule that most chat interactions never call the AI at all.
 - User responses are collected via **inline structured controls** (number inputs, tap-chips, buttons,
@@ -672,8 +673,61 @@ become additive rather than a migration rewrite. See `CLAUDE.md` Rule 5.
 - FEATURE: `ANTHROPIC_API_KEY`, `AI_MODEL`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, `RESEND_API_KEY`
 - OPTIONAL: `SENTRY_DSN`, `AI_MOCK`
 
-**Design direction:** Warm Earth palette — coral `#D85A30`, amber `#EF9F27`, cream background
-`#fdf8f4`, text `#2C2C2A`. The previous pale palette (and the PRD's "Fresh Sage") is rejected.
+**Design direction: Fresh Sage.** These are the **only** palette values in this build — stated once
+here, referenced everywhere else (`CLAUDE.md` Rule 17). The earlier "Warm Earth" palette (coral/amber/
+cream) is **superseded and must not appear anywhere in the codebase.**
+
+| Token | Hex | Use |
+|---|---|---|
+| Background | `#F8FAF5` | Page background |
+| CTA / primary | `#5B8C3E` | **Large/bold text, icons, borders only** — see the contrast rule below |
+| CTA / primary (darkened) | `#4D7735` | **Fill for any solid button carrying normal-size text** |
+| Tint | `#EDF5E4` | Surfaces, cards, chat bubbles |
+| Text | `#2C3E2D` | Body copy |
+| Muted | `#6B8A6D` | Secondary text — same restriction as base CTA |
+
+**Contrast rule (the reason two greens exist).** Base CTA `#5B8C3E` on white is **3.99:1** — it clears
+WCAG AA's 3:1 threshold for large/bold text, icons, and UI borders, but **fails the 4.5:1 minimum for
+normal-size text.** The darkened variant `#4D7735` on white is **5.24:1** and is therefore the fill for
+any solid button whose label is normal-size text. Never put normal-size white text on `#5B8C3E`.
+
+**The same restriction applies to Muted `#6B8A6D`** — **3.83:1** with white. Large/bold text, icons, and
+borders only; never normal-size white text on it.
+
+**Verified accessible pairings — stated as fact, not to be re-derived or recalculated:**
+
+| Foreground | Background | Ratio | Verdict |
+|---|---|---|---|
+| Text `#2C3E2D` | Background `#F8FAF5` | **10.90:1** | Passes AA and AAA |
+| Text `#2C3E2D` | Tint `#EDF5E4` | **10.24:1** | Passes AA and AAA |
+| White `#FFFFFF` | Darkened CTA `#4D7735` | **5.24:1** | Passes AA for normal-size text |
+| White `#FFFFFF` | Base CTA `#5B8C3E` | **3.99:1** | Large/bold, icons, borders **only** |
+| White `#FFFFFF` | Muted `#6B8A6D` | **3.83:1** | Large/bold, icons, borders **only** |
+
+Prompt 2b implements exactly these pairings. It does not invent new colour combinations, and it does not
+re-derive these ratios.
+
+---
+
+## 11a. Accessibility — WCAG 2.1 Level AA + Section 508
+
+**This build targets WCAG 2.1 Level AA and US Section 508 conformance.** These are hard requirements on
+Prompt 2b (design system and UI primitives), and every later prompt that renders UI inherits them.
+
+Non-negotiables:
+
+1. **Never convey information by colour alone.** Every state carried by colour — expiring pantry items,
+   approved days, validation errors, selected supper option — is paired with an icon or a text label.
+   (WCAG 1.4.1; Section 508 § 502.3)
+2. **Visible focus indicators**, at **≥ 3:1** contrast against adjacent colours. Never `outline: none`
+   without an equally visible replacement. Every interactive element is keyboard-reachable and shows
+   where focus is. (WCAG 2.4.7, 1.4.11)
+3. **Every form input has a programmatically associated label** — a real `<label for>` or an equivalent
+   `aria-label` / `aria-labelledby`. **A placeholder is not a label**: it disappears on input and is not
+   reliably announced. This covers every chat step control (§ 3.1) as well as the auth forms.
+   (WCAG 1.3.1, 3.3.2; Section 508 § 502.3)
+4. **Contrast comes from the verified table in § 11** — Prompt 2b implements those pairings and the
+   large/bold-only restrictions on `#5B8C3E` and `#6B8A6D`. It does not invent new pairings.
 
 ---
 
@@ -713,7 +767,8 @@ file an earlier prompt owns.
 - `src/types/database.ts` (generated Supabase types)
 - `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/globals.css`
 
-### Prompt 2b — Design system (Warm Earth) & UI primitives
+### Prompt 2b — Design system (Fresh Sage) & UI primitives
+Implements the § 11 palette and the § 11a accessibility requirements (WCAG 2.1 AA + Section 508).
 - `tailwind.config.ts`, `components.json`
 - `src/lib/utils.ts`
 - `src/components/ui/*` (button, input, card, chip, checkbox, dialog, label, badge, skeleton, toast)
@@ -827,6 +882,12 @@ wins** (`CLAUDE.md` Rule 1).
 - **G-01 — RESOLVED.** Vegetarian split corrected to 30% protein / 40% carbs / 30% fat in **§ 8.2**; the
   OPEN ITEM is withdrawn and the sum-to-100 startup assertion G-01 recommended is now a requirement
   there.
+- **G-03 — RESOLVED (both halves).** The row's palette framing is now **backwards**: it lists the PRD's
+  "Fresh Sage" palette as a contradiction to be disregarded, but Fresh Sage is the **confirmed final
+  palette** (**§ 11**), and the interim "Warm Earth" palette is what is superseded. The PRD's chat
+  section therefore agrees with this build rather than contradicting it. The row's second half —
+  `README.md` pinning React + Vite + Express — is also closed: README's stack table now reads Next.js
+  15.5.24 (App Router) + TypeScript for both frontend and backend, matching **§ 11**.
 - **G-06 — RESOLVED.** Email verification does not gate the chat; it is enforced only at
   `POST /api/mealplan/generate`, which returns 403 for an unverified user. See **§ 3** (chat bullet) and
   **§ 6** (route note).

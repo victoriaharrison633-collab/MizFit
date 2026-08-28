@@ -9,14 +9,13 @@ Tail prompts (Stripe, Legal/GDPR, Polish, Testing/CI) are **DEFERRED — not par
 
 ---
 
-## The 16 Standing Rules
+## The 17 Standing Rules
 
 **Rule 1 — SPEC.md is the single source of truth.**
 Every table, column, route path, enum value, and copy string comes from `SPEC.md`. Do not invent
 features, fields, or endpoints that are not in it. If something needed is missing, stop and flag it;
 do not improvise a design decision into the codebase. `README.md` and `PRD.md` are historical context
-only and are known to contradict the pinned build (React/Vite/Express stack, "Fresh Sage" palette) —
-`SPEC.md` supersedes both.
+only and are known to contradict the pinned build — `SPEC.md` supersedes both.
 
 **Rule 2 — The stack is pinned.**
 Use exactly the versions in the stack table below. No framework swaps, no alternative ORMs, no extra
@@ -124,6 +123,15 @@ for — the `subscriptions` table, the `PLANS` constant, the workspace pattern, 
 No dead UI, no buttons that render but do nothing, no `TODO` scaffolding on a user-visible surface. If
 a deferred feature seems needed to make something else work, flag it rather than building it.
 
+**Rule 17 — Accessibility is a hard requirement, not polish.**
+This build targets **WCAG 2.1 Level AA and US Section 508**. The requirements are stated once in
+`SPEC.md` § 11a and the verified contrast pairings once in § 11 — this file does not restate either.
+Prompt 2b implements them in the design system; every later prompt that renders UI inherits them. The
+four non-negotiables: never convey information by colour alone, visible focus indicators at ≥ 3:1,
+every form input programmatically labelled (a placeholder is **not** a label), and contrast pairings
+taken from § 11 rather than invented. Accessibility is **not** part of the deferred Polish tail —
+Rule 16 does not apply to it.
+
 ---
 
 ## Pinned Stack
@@ -133,8 +141,8 @@ a deferred feature seems needed to make something else work, flag it rather than
 | Framework | Next.js, App Router | 15.5.x |
 | Language | TypeScript | 5.7, `strict: true` |
 | Database / Auth / Storage | Supabase (Postgres) | RLS on every table; `@supabase/ssr` cookie sessions |
-| Styling | Tailwind CSS | Warm Earth tokens only (`SPEC.md` § 11) |
-| UI components | shadcn/ui | Themed to the Warm Earth palette (`SPEC.md` § 11) |
+| Styling | Tailwind CSS | Fresh Sage tokens only (`SPEC.md` § 11) |
+| UI components | shadcn/ui | Themed to the Fresh Sage palette (`SPEC.md` § 11); WCAG 2.1 AA (§ 11a) |
 | Rate limiting | Upstash Redis | `@upstash/ratelimit` |
 | Transactional email | Resend | Password reset + email verification |
 | AI | Anthropic API | Model id from the `AI_MODEL` env var — see Rule 13 |
@@ -142,8 +150,9 @@ a deferred feature seems needed to make something else work, flag it rather than
 | Error monitoring | Sentry | Optional (`SENTRY_DSN`); scrub PII before send |
 | Deploy | Vercel | Desktop browser is the demo target |
 
-**Palette:** Warm Earth. The four token values are stated once in `SPEC.md` § 11 and are not repeated
-here. The PRD's "Fresh Sage" palette is superseded and must be disregarded.
+**Palette:** Fresh Sage. The token values, the two-green contrast rule, and the verified pairings are
+stated once in `SPEC.md` § 11 and are not repeated here. The interim "Warm Earth" palette (coral/amber/
+cream) is **superseded** — no Warm Earth hex may appear anywhere in the codebase.
 
 **Env vars** — the three tiers (REQUIRED / FEATURE / OPTIONAL) and their exact names are stated once in
 `SPEC.md` § 11 and are not repeated here. Rule 11 governs which of them are server-only.
