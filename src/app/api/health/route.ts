@@ -64,7 +64,31 @@ export async function POST(request: Request) {
     body = `fetch threw: ${error instanceof Error ? error.message : 'unknown'}`
   }
 
+  const expected = [
+    'NEXT_PUBLIC_SUPABASE_URL',
+    'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+    'SUPABASE_SERVICE_ROLE_KEY',
+    'NEXT_PUBLIC_APP_URL',
+    'UPSTASH_REDIS_REST_URL',
+    'UPSTASH_REDIS_REST_TOKEN',
+    'AI_MOCK',
+  ]
+
   return Response.json({
+    // Which of the expected names are actually present in this runtime, and
+    // any near-miss names (a stray space or lowercase letter in the key name
+    // makes a variable invisible to the app while looking correct in a UI).
+    env_present: Object.fromEntries(expected.map((name) => [name, Boolean(process.env[name])])),
+    env_keys_containing_supabase: Object.keys(process.env)
+      .filter((name) => name.toUpperCase().includes('SUPABASE'))
+      .map((name) => `${JSON.stringify(name)} len=${(process.env[name] ?? '').length}`),
+    // First 14 characters only: enough to tell sb_publishable_ from sb_secret_
+    // from a JWT header, and not enough to be a credential.
+    service_key_prefix: key.slice(0, 14),
+    anon_key_prefix: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').slice(0, 14),
+    anon_key_length: (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '').length,
+    vercel_env: process.env.VERCEL_ENV ?? null,
+    vercel_commit: (process.env.VERCEL_GIT_COMMIT_SHA ?? '').slice(0, 7) || null,
     configured_supabase_origin: origin,
     configured_app_url: clientEnv.NEXT_PUBLIC_APP_URL,
     service_key_length: key.length,
