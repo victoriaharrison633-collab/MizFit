@@ -1,33 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /*
- * Placeholder stylesheet.
- *
- * Prompt 2b owns the design system: it adds tailwind.config.ts, the PostCSS
- * wiring, and the Fresh Sage tokens from SPEC.md § 11, and replaces the
- * literal values below with those tokens. Nothing here invents a palette.
+ * Fresh Sage base layer. Token values live in tailwind.config.ts, taken from
+ * SPEC.md § 11; nothing here introduces a colour that section does not define.
  */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-}
+  body {
+    @apply bg-bg text-text antialiased;
+  }
 
-html {
-  -webkit-text-size-adjust: 100%;
-}
-
-body {
-  margin: 0;
-  font-family:
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    'Segoe UI',
-    sans-serif;
-  line-height: 1.5;
-}
-
-:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 2px;
+  /*
+   * Backstop focus indicator. Every interactive primitive in src/components/ui
+   * carries the shared `focusRing` from src/lib/utils.ts; this catches anything
+   * a later prompt renders without one, so no control can be focused invisibly.
+   */
+  :focus-visible {
+    @apply outline outline-2 outline-offset-2 outline-cta;
+  }
 }
