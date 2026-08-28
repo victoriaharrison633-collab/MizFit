@@ -4,7 +4,7 @@
 This file carries only the state a fresh session cannot reconstruct from the repo: what is done,
 what was decided along the way, and why. Update it at the end of every prompt.
 
-Last updated: after the demo-spine pass (Prompts 7–12, narrowed) · deploy-ready
+Last updated: after the hackathon deploy · live on Vercel, one setting away from working signup
 
 ---
 
@@ -276,6 +276,36 @@ shell files, `src/lib/chat/{steps,copy,use-chat-flow}.ts`, and the five
 and this file.
 
 ---
+
+## Deployed state, and the one thing left
+
+Live at `https://miz-fit.vercel.app`, Supabase project `totubavgrhunmnljioxa`.
+
+**Signup returns 500 on production, and it is one setting, not a code bug.** Supabase →
+Authentication → Providers → Email → **"Confirm email" must be OFF**. With it on, `signUp` returns a
+user with no session and the route throws a deliberate 500 naming that cause. Nothing else is known
+to be broken: the full path — profile, generation, review, grocery list, pantry CRUD — was verified
+working on production through a temporary no-signup door, which has since been removed at the user's
+request.
+
+**Two hosted-only failures were fixed during deploy, neither reproducible locally.** Both are now
+migrations so a fresh database cannot repeat them:
+- `SUPABASE_SERVICE_ROLE_KEY` had the *publishable* key in it. The admin API answered "This endpoint
+  requires a valid Bearer token".
+- Tables created through the hosted SQL Editor carry no privileges for `anon`, `authenticated` or
+  `service_role`, so every API call failed with "permission denied for table workspaces" — including
+  the service role, which bypasses RLS but still needs a GRANT (`0010_api_role_grants.sql`).
+
+**Debugging lesson worth keeping:** four fixes inferred from the symptom were all wrong before a
+step-by-step diagnostic was built. The misleading signal was `/api/auth/login` returning "Email or
+password is incorrect" for *every* failure by design, which was read as proof Supabase was wired
+correctly. Build the probe first next time.
+
+**The no-signup demo door has been removed** (`/api/auth/demo` and its landing-page button). Signup
+and login are the only entrances again.
+
+**Left over:** `probe-*@mizfit-demo.app` and `demo-*@mizfit-demo.app` accounts in the Supabase project
+from testing; filter by prefix in Authentication → Users.
 
 ## Deploying to Vercel — what the app needs
 

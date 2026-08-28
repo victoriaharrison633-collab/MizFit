@@ -39,29 +39,19 @@ export default function HomePage() {
           the gap.
         </p>
 
-        {/*
-          A native form POST, so the demo door works with no client JavaScript
-          and the route can set the session cookie and redirect in one hop.
-        */}
-        <form action="/api/auth/demo" method="POST" className="mt-2">
-          <Button type="submit" size="lg" variant="solid">
-            Try it now — no signup
+        <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
+          <Button asChild size="lg" variant="solid">
+            <Link href="/signup">Create your account</Link>
           </Button>
-        </form>
-
-        <p className="text-sm text-text">
-          Opens a ready-made account with a stocked 54-item pantry, so you can plan a real week
-          straight away.
-        </p>
-
-        <div className="flex flex-wrap items-center justify-center gap-3">
-          <Button asChild variant="outline">
-            <Link href="/signup">Create an account</Link>
-          </Button>
-          <Button asChild variant="ghost">
+          <Button asChild size="lg" variant="outline">
             <Link href="/login">Sign in</Link>
           </Button>
         </div>
+
+        <p className="text-sm text-text">
+          Every new account starts with a stocked 54-item pantry, so you can plan a real week
+          straight away.
+        </p>
       </div>
 
       <ol className="grid gap-4 sm:grid-cols-3">
