@@ -1,6 +1,7 @@
 import { withPublicApiHandler } from '@/lib/security/api-handler'
 import { ApiError } from '@/lib/security/errors'
 import { signupSchema } from '@/lib/auth/schemas'
+import { provisionWorkspace } from '@/lib/auth/provision'
 
 /**
  * POST /api/auth/signup (SPEC.md § 6)
@@ -51,6 +52,10 @@ export const POST = withPublicApiHandler(
           'this build requires them off (SPEC.md § 3, G-06).',
       })
     }
+
+    // Idempotent: returns immediately if `handle_new_user` already did this.
+    // See src/lib/auth/provision.ts for why the app does it at all.
+    await provisionWorkspace(data.user.id, data.user.email ?? ctx.body.email)
 
     // The session lives in the SSR cookies the client just set. Nothing about
     // the token is echoed into the body (Rule 11).

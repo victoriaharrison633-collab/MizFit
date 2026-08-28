@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { withPublicApiHandler } from '@/lib/security/api-handler'
 import { ApiError } from '@/lib/security/errors'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { provisionWorkspace } from '@/lib/auth/provision'
 import { clientEnv } from '@/env'
 
 /**
@@ -36,7 +37,7 @@ export const POST = withPublicApiHandler(
     const password = `Dm${crypto.randomUUID()}${crypto.randomUUID().slice(0, 8)}!aA1`
 
     const admin = createAdminClient()
-    const { error: createError } = await admin.auth.admin.createUser({
+    const { data: created, error: createError } = await admin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
@@ -48,6 +49,11 @@ export const POST = withPublicApiHandler(
         detail: `demo createUser failed: ${createError.message}`,
         cause: createError,
       })
+    }
+
+    // Idempotent: does nothing if the trigger already provisioned this user.
+    if (created?.user) {
+      await provisionWorkspace(created.user.id, created.user.email ?? email)
     }
 
     const { error: signInError } = await ctx.db.auth.signInWithPassword({ email, password })
