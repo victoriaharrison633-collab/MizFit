@@ -127,6 +127,10 @@ Last updated: after Prompt 4 · `main` at the Prompt 4 commit
   unauthenticated routes) and per route. `mealplan:generate` 5/h and `mealplan:regenerate` 20/h come
   from BUILD.md; `auth:login` 10/15m, `auth:reset-password` 5/h, `mutation` 60/m and `read` 120/m are
   chosen defaults, flagged as such. The default is `read` for GET and `mutation` otherwise.
+- **Successful responses carry `X-RateLimit-Limit/Remaining/Reset`** so the chat can warn before the
+  user hits the cap instead of after. `Retry-After` appears only on the 429. Nothing is sent when the
+  route has no bucket, or when the check could not be enforced — a count we did not compute would be
+  a number the client trusts and we invented.
 - **The unenforceable path warns on every check, not once per process.** A warning that prints once is
   one a developer scrolls past, and it is saying the app is running with an unenforced limit.
 - **`common.ts` bounds only the fields SPEC.md gives numbers for** — age 13–120, servings 1–12, supper

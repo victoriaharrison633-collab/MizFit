@@ -196,8 +196,34 @@ export async function checkRateLimit(
   }
 }
 
-/** Standard headers so a client can back off without guessing. */
+/**
+ * How much of the bucket is left, for a response that succeeded.
+ *
+ * Returned on every successful call so a client can show "2 generations left
+ * this hour" and stop the user walking into a refusal they could not see
+ * coming. The cap itself is enforced server-side and does not depend on the
+ * client reading these.
+ *
+ * Nothing is returned when the check could not be enforced: a count we did not
+ * actually compute would be a number the client trusts and we invented.
+ */
 export function rateLimitHeaders(result: RateLimitResult): Record<string, string> {
+  if (!result.enforced) return {}
+
+  return {
+    'X-RateLimit-Limit': String(result.limit),
+    'X-RateLimit-Remaining': String(Math.max(0, result.remaining)),
+    'X-RateLimit-Reset': String(Math.ceil(result.reset / 1000)),
+  }
+}
+
+/**
+ * The same headers for a rejection, plus `Retry-After` — the one header that
+ * only makes sense once the answer is no. The limit and reset are stated even
+ * when the check was unenforceable, because a fail-closed 429 still needs to
+ * tell the caller when to come back.
+ */
+export function rateLimitRejectionHeaders(result: RateLimitResult): Record<string, string> {
   return {
     'X-RateLimit-Limit': String(result.limit),
     'X-RateLimit-Remaining': String(Math.max(0, result.remaining)),
@@ -221,6 +247,6 @@ export async function assertWithinRateLimit(
     detail: result.enforced
       ? `Bucket "${bucket}" exhausted for identifier ${identifier}`
       : `Bucket "${bucket}" could not be enforced; failing closed in production`,
-    headers: rateLimitHeaders(result),
+    headers: rateLimitRejectionHeaders(result),
   })
 }

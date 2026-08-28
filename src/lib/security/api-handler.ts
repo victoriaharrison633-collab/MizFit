@@ -7,7 +7,12 @@ import { createClient } from '@/lib/supabase/server'
 import type { Db } from '@/lib/db/queries'
 import { ApiError, logApiError, toApiError, validationError, type ApiErrorBody } from './errors'
 import { getActiveWorkspace, requireUser, type ActiveWorkspace } from './ownership'
-import { assertWithinRateLimit, type RateLimitBucket } from './rate-limit'
+import {
+  assertWithinRateLimit,
+  rateLimitHeaders,
+  type RateLimitBucket,
+  type RateLimitResult,
+} from './rate-limit'
 
 /**
  * The one wrapper every API route in this app goes through (CLAUDE.md Rule 7).
@@ -189,20 +194,34 @@ function parseQuery<T>(request: NextRequest, schema: z.ZodType<T> | undefined): 
   return result.data
 }
 
-function successResponse(result: unknown, requestId: string, successStatus?: number): NextResponse {
+/**
+ * A successful response reports what is left of the caller's bucket, so the UI
+ * can warn before the user hits the wall rather than after (`X-RateLimit-*`).
+ * The cap is enforced server-side either way — these headers only inform.
+ */
+function successResponse(
+  result: unknown,
+  requestId: string,
+  rateLimit: RateLimitResult | undefined,
+  successStatus?: number
+): NextResponse {
+  const headers = {
+    ...(rateLimit ? rateLimitHeaders(rateLimit) : {}),
+    'x-request-id': requestId,
+  }
+
   if (result instanceof NextResponse) {
-    result.headers.set('x-request-id', requestId)
+    for (const [name, value] of Object.entries(headers)) {
+      result.headers.set(name, value)
+    }
     return result
   }
 
   if (result === undefined) {
-    return new NextResponse(null, { status: 204, headers: { 'x-request-id': requestId } })
+    return new NextResponse(null, { status: 204, headers })
   }
 
-  return NextResponse.json(result, {
-    status: successStatus ?? 200,
-    headers: { 'x-request-id': requestId },
-  })
+  return NextResponse.json(result, { status: successStatus ?? 200, headers })
 }
 
 function errorResponse(error: unknown, request: NextRequest, requestId: string): NextResponse {
@@ -251,7 +270,7 @@ export function withApiHandler<
       const user = await requireUser(db)
 
       // 3. Rate limit, keyed per user and per route.
-      await assertWithinRateLimit(config.rateLimit ?? defaultBucket, user.id)
+      const rateLimit = await assertWithinRateLimit(config.rateLimit ?? defaultBucket, user.id)
 
       // 4. Zod validation of body, params, and query.
       const body = await parseBody(request, config.body)
@@ -277,7 +296,7 @@ export function withApiHandler<
       // 6. Handler.
       const result = await handler({ ...authed, resources })
 
-      return successResponse(result, requestId, config.successStatus)
+      return successResponse(result, requestId, rateLimit, config.successStatus)
     } catch (error) {
       // 7. Typed error response.
       return errorResponse(error, request, requestId)
@@ -310,9 +329,10 @@ export function withPublicApiHandler<TBody = undefined, TParams = undefined, TQu
       // 2. No auth session — this route exists to be reached without one.
 
       // 3. Rate limit, keyed on the client address since there is no user id.
-      if (config.rateLimit !== false) {
-        await assertWithinRateLimit(config.rateLimit, clientIdentifier(request))
-      }
+      const rateLimit =
+        config.rateLimit === false
+          ? undefined
+          : await assertWithinRateLimit(config.rateLimit, clientIdentifier(request))
 
       // 4. Zod validation.
       const body = await parseBody(request, config.body)
@@ -325,7 +345,7 @@ export function withPublicApiHandler<TBody = undefined, TParams = undefined, TQu
       const db = (await createClient()) as Db
       const result = await handler({ request, requestId, db, body, params, query })
 
-      return successResponse(result, requestId, config.successStatus)
+      return successResponse(result, requestId, rateLimit, config.successStatus)
     } catch (error) {
       // 7. Typed error response.
       return errorResponse(error, request, requestId)
