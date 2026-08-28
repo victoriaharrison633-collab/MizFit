@@ -4,7 +4,7 @@
 This file carries only the state a fresh session cannot reconstruct from the repo: what is done,
 what was decided along the way, and why. Update it at the end of every prompt.
 
-Last updated: after Prompt 5 · `main` at the Prompt 5 commit
+Last updated: after Prompt 6 · `main` at the Prompt 6 commit
 
 ---
 
@@ -19,15 +19,16 @@ Last updated: after Prompt 5 · `main` at the Prompt 5 commit
 | 3b — Nutrition enrichment (**OPTIONAL**) | ⬜ not started — skipping is an expected outcome |
 | 4 — Security utilities & API foundation | ✅ complete |
 | 5 — Auth: six server routes + form UI | ✅ complete |
-| **6 — App shell, session middleware, health** | ⬜ **next** |
-| 7–12 | ⬜ not started |
+| 6 — App shell, session middleware, health | ✅ complete |
+| **7 — Mizfit Chat UI shell & step engine** | ⬜ **next** |
+| 8–12 | ⬜ not started |
 | Tail (Stripe, Legal/GDPR, Polish, Testing/CI) | **DEFERRED — not part of this build** |
 
 `main` == `origin/main`, working tree clean, `npm run check:all` green.
 
-**Prompt 6 owns** (SPEC.md Appendix A): `middleware.ts` at the project root,
-`src/app/(app)/layout.tsx`, `src/app/(app)/error.tsx`, `src/app/not-found.tsx`,
-`src/app/api/health/route.ts`, `src/components/shell/app-header.tsx`, `src/components/shell/nav.tsx`.
+**Prompt 7 owns** (SPEC.md Appendix A): `src/app/(app)/chat/page.tsx`, the four `components/chat/*`
+shell files, `src/lib/chat/{steps,copy,use-chat-flow}.ts`, and the five
+`components/chat/controls/*` inputs.
 
 ---
 
@@ -64,6 +65,12 @@ Last updated: after Prompt 5 · `main` at the Prompt 5 commit
   talk to the local stack; it is gitignored and was removed after the checkpoint.
 - `git push` works, but Git Credential Manager can stall on a GUI prompt that an agent session
   cannot surface. If a push hangs, hand it back to the user to run as `!git push`.
+- **Port 3000 is often occupied by one of the user's other projects.** Run checkpoints on an explicit
+  port (`npx next dev -p 3210`) and never kill whatever is listening on 3000 — it is probably not this
+  app. Set `NEXT_PUBLIC_APP_URL` to match the port in use, or emailed links point at the wrong server.
+- **No browser automation is available in this project** (the Chrome extension was declined). Anything
+  that only exists after hydration cannot be seen with `curl`; verify the server output and the
+  component's own render separately, and say plainly which half was not executed.
 
 ---
 
@@ -145,6 +152,31 @@ Last updated: after Prompt 5 · `main` at the Prompt 5 commit
   "12 characters" so Checkpoint 5's grep finds it. A module-load guard fails the boot if that sentence
   and `PASSWORD_MIN_LENGTH` ever drift apart.
 
+**App shell (Prompt 6)**
+- **Middleware lives at `src/middleware.ts`, not the repository root.** `BUILD.md` says "project root",
+  but with a `src` directory Next only picks it up inside `src/` — at the root it is silently ignored,
+  which would leave every page unprotected with nothing to notice. Verified working: the build output
+  lists `ƒ Middleware`, and an anonymous `/chat` redirects.
+- **Protection is deny-by-default.** Public pages are exactly `/`, `/login`, `/signup`,
+  `/forgot-password`, `/reset-password`; everything else needs a session. A page added by a later
+  prompt is protected the moment it exists, not the moment someone remembers to list it. Consequence
+  to know: a signed-out request for a path that does not exist also redirects to `/login`, so the
+  custom 404 is only seen by a signed-in visitor.
+- **`/api/*` always passes through middleware** and is authenticated by `withApiHandler` instead.
+  Redirecting an API call would hand `fetch()` an HTML login page with a 200 instead of the typed 401
+  it expects. `/api/health` skips the session refresh entirely.
+- **The `(app)` layout re-reads the session** even though middleware already did. Middleware protects
+  by path pattern; the layout protects by being the thing that renders, so a narrowed matcher cannot
+  quietly expose a page.
+- **SENTRY IS NOT WIRED into `(app)/error.tsx`, and this is a flagged conflict, not an oversight.**
+  `BUILD.md` asks the boundary to report when `SENTRY_DSN` is set. The boundary is a client component,
+  so reporting needs a browser-readable DSN; `SPEC.md` § 11 lists `SENTRY_DSN` as server-only and
+  `.env.example` forbids adding a variable § 11 does not name. Routing it through an API endpoint means
+  inventing a route § 6 does not list (Rule 6), and `@sentry/nextjs` is not a pinned dependency
+  (Rule 2). Next already logs the same error server-side with the same digest. Reasoning is in the file.
+- **The boundary shows `error.digest`** — Next's own hash, not derived from user data — so a user can
+  quote a reference that matches the server log.
+
 **Auth (Prompt 5) — and the verification gate that was removed**
 - **`SPEC.md` § 3, § 6, G-06, `BUILD.md` and `CLAUDE.md` Rule 12 were all amended before this prompt
   was built.** The old design — chat open immediately, 403 at `/api/mealplan/generate` for an
@@ -205,15 +237,16 @@ and this file.
 
 ---
 
-## Prompt 6 reminders from the rules
+## Prompt 7 reminders from the rules
 
-- `middleware.ts` protects the `(app)` group only. Public: `/`, the four `(auth)` pages,
-  `/api/auth/*`, `/api/health`. The **only** redirect is unauthenticated → `/login`; there is no
-  verification branch to add (SPEC.md § 3, G-06).
-- Session refresh goes through `updateSession` in `src/lib/supabase/middleware.ts` (Prompt 2a), which
-  already calls `auth.getUser()` — the cookie's contents are never trusted on their own.
-- `/api/health` is unauthenticated and returns no env value, version string, commit sha, or database
-  detail. It goes through `withPublicApiHandler` with `rateLimit: false` — a liveness probe that a
-  monitor can trip into a 429 is not a liveness probe.
-- The error boundary shows app-authored copy and no stack trace, and there is still no red in the
-  palette: pair any error state with an icon and a word, never colour alone (SPEC.md § 11a).
+- The chat is **templated copy plus structured controls, not NLP** (Rule 15). No free-text input, no
+  intent parsing, no scope-guardrail system prompt, no cross-app FAB. Every "AI message" bubble is
+  app-authored copy from `src/lib/chat/copy.ts` — Prompt 10 owns the only Anthropic call in the build.
+- Each step declares its expected answer shape once (e.g. `{ activity_level: ActivityLevel }`) so a
+  future NLP layer is additive rather than a rewrite.
+- **Each step writes its answer to the database immediately on capture**, and resume position comes
+  from `profiles.onboarding_step`, so a mid-flow refresh continues instead of restarting.
+- Steps 10 (review) and 11 (grocery) render **inside the chat stream**, not on standalone pages. The
+  11-step sequence in `SPEC.md` § 3.1 is the authority on order and on each step's answer shape.
+- Every control is a labelled form input (`SPEC.md` § 11a non-negotiable 3) — the `Input` and
+  `Checkbox` primitives already refuse to compile without a label.
