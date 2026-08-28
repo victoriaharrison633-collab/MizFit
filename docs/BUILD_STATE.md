@@ -4,7 +4,7 @@
 This file carries only the state a fresh session cannot reconstruct from the repo: what is done,
 what was decided along the way, and why. Update it at the end of every prompt.
 
-Last updated: after Prompt 4 · `main` at the Prompt 4 commit
+Last updated: after Prompt 5 · `main` at the Prompt 5 commit
 
 ---
 
@@ -18,15 +18,16 @@ Last updated: after Prompt 4 · `main` at the Prompt 4 commit
 | 3 — Database schema, RLS, triggers, baseline seed | ✅ complete |
 | 3b — Nutrition enrichment (**OPTIONAL**) | ⬜ not started — skipping is an expected outcome |
 | 4 — Security utilities & API foundation | ✅ complete |
-| **5 — Auth: six server routes + form UI** | ⬜ **next** |
-| 6–12 | ⬜ not started |
+| 5 — Auth: six server routes + form UI | ✅ complete |
+| **6 — App shell, session middleware, health** | ⬜ **next** |
+| 7–12 | ⬜ not started |
 | Tail (Stripe, Legal/GDPR, Polish, Testing/CI) | **DEFERRED — not part of this build** |
 
 `main` == `origin/main`, working tree clean, `npm run check:all` green.
 
-**Prompt 5 owns** (SPEC.md Appendix A): the six auth routes in `src/app/api/auth/*`,
-`src/lib/auth/schemas.ts`, `src/lib/auth/email.ts`, the four `(auth)` pages, and
-`src/components/auth/{auth-form,password-field}.tsx`.
+**Prompt 6 owns** (SPEC.md Appendix A): `middleware.ts` at the project root,
+`src/app/(app)/layout.tsx`, `src/app/(app)/error.tsx`, `src/app/not-found.tsx`,
+`src/app/api/health/route.ts`, `src/components/shell/app-header.tsx`, `src/components/shell/nav.tsx`.
 
 ---
 
@@ -144,6 +145,46 @@ Last updated: after Prompt 4 · `main` at the Prompt 4 commit
   "12 characters" so Checkpoint 5's grep finds it. A module-load guard fails the boot if that sentence
   and `PASSWORD_MIN_LENGTH` ever drift apart.
 
+**Auth (Prompt 5) — and the verification gate that was removed**
+- **`SPEC.md` § 3, § 6, G-06, `BUILD.md` and `CLAUDE.md` Rule 12 were all amended before this prompt
+  was built.** The old design — chat open immediately, 403 at `/api/mealplan/generate` for an
+  unverified user — rests on a state Supabase does not have. Probed against the live local stack:
+  `admin.createUser({ email_confirm: false })` gives `email_confirmed_at: null`, and a password grant
+  for that user is refused with `400 email_not_confirmed`. The refusal does **not** depend on
+  `enable_confirmations`, which was already `false` locally. So a session-holding user is always
+  already confirmed, and the 403 could never fire. **Decision: no verification gate anywhere in this
+  build.** Do not re-add one without re-reading G-06. The Anthropic spend it guarded is held by the
+  `mealplan:generate` bucket and by mandatory dev mocking.
+- **`enable_confirmations = false` is load-bearing now.** `signUp` issues the session directly, which
+  is what makes the chat reachable at once. The signup route throws a loud 500 with the reason if it
+  ever gets back a user with no session — that is the symptom of someone turning confirmations on in
+  the Supabase project.
+- **Password reset uses `admin.generateLink({ type: 'recovery' })` plus Resend**, not
+  `resetPasswordForEmail`. Supabase's own mailer is not in the path, so `src/lib/auth/email.ts` owns
+  the copy and the send. `generateLink` is a justified service-role call (Rule 11): minting a token for
+  an address the caller has not authenticated as has no anon-key equivalent.
+- **`/api/auth/callback` is the only route that consumes the token**, via `verifyOtp`, which is what
+  makes the link single-use. Both outcomes are redirects, never JSON — a person clicked a link in their
+  inbox. A spent link lands on `/forgot-password?status=invalid_link`, and that value is matched
+  against a fixed map; the query string is never rendered.
+- **`/api/auth/reset-password` is the one auth route behind `withApiHandler`**, not the public wrapper.
+  It runs on the session the callback established, so no valid link means no session means 401.
+- **`forgot-password` pads every response to a 1500ms floor** so the branch that sends mail and the
+  branch that does not cannot be told apart by a stopwatch. Measured warm: both branches within 8ms.
+  The number is a measurement, not a constant — re-measure if Resend latency changes.
+- **The from-address is a module constant, `MizFit <onboarding@resend.dev>`** — Resend's sandbox
+  sender, which only delivers to the Resend account owner. `SPEC.md` § 11 lists no variable for it and
+  `.env.example` forbids adding one, so it is not read from the environment. Replace it with a verified
+  domain before this app mails a real user.
+- **With no `RESEND_API_KEY`, development prints the reset link to the server console** and production
+  logs an error — neither throws, because a mail failure that became a 500 would leak the account
+  existence the route exists to hide. This is also how the reset flow is testable locally.
+- **`AuthForm` is declarative and owns all four forms' client logic.** Pages stay server components and
+  pass a `fields` array; that is what keeps `components/auth/` to the two files Appendix A lists.
+  Copy for the password rule comes from `PASSWORD_RULE_TEXT` — the pages never write the number.
+- **Signup, login and reset all redirect to `/chat`, which does not exist until Prompt 7.** That is the
+  intended seam, not an oversight.
+
 **Design system (Prompt 2b)**
 - **No error/red colour exists.** `SPEC.md` § 11's six tokens are the only palette in this build, so
   error states use an icon plus the literal word "Error" plus a heavier border — never colour. If a
@@ -164,14 +205,15 @@ and this file.
 
 ---
 
-## Prompt 5 reminders from the rules
+## Prompt 6 reminders from the rules
 
-- Every one of the six routes goes through Prompt 4's wrapper. Signup, login, forgot-password,
-  reset-password and callback have no session yet, so they use **`withPublicApiHandler`** and must name
-  a rate-limit bucket explicitly — `auth:signup`, `auth:login`, `auth:forgot-password` and
-  `auth:reset-password` already exist in `RATE_LIMIT_BUCKETS`.
-- Import `passwordSchema` from `src/lib/validation/password.ts`; never restate the policy. The UI copy
-  renders `PASSWORD_RULE_TEXT` — that string is where the literal **12** lives for the two forms.
-- `/api/auth/forgot-password` **always returns 200**, same body, comparable timing, registered or not.
-- Email verification gates nothing here. The single gate is `POST /api/mealplan/generate` (Prompt 10).
-- Route paths byte-for-byte from `SPEC.md` § 6. No aliases, no added GET handlers.
+- `middleware.ts` protects the `(app)` group only. Public: `/`, the four `(auth)` pages,
+  `/api/auth/*`, `/api/health`. The **only** redirect is unauthenticated → `/login`; there is no
+  verification branch to add (SPEC.md § 3, G-06).
+- Session refresh goes through `updateSession` in `src/lib/supabase/middleware.ts` (Prompt 2a), which
+  already calls `auth.getUser()` — the cookie's contents are never trusted on their own.
+- `/api/health` is unauthenticated and returns no env value, version string, commit sha, or database
+  detail. It goes through `withPublicApiHandler` with `rateLimit: false` — a liveness probe that a
+  monitor can trip into a 429 is not a liveness probe.
+- The error boundary shows app-authored copy and no stack trace, and there is still no red in the
+  palette: pair any error state with an icon and a word, never colour alone (SPEC.md § 11a).

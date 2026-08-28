@@ -456,12 +456,12 @@ GET where only POST is listed, and do not create routes not on that list.
 5. `src/app/api/auth/reset-password/route.ts` — POST. Same shared password
    schema. The reset token is single-use.
 
-6. `src/app/api/auth/callback/route.ts` — GET. Supabase code exchange for email
-   verification and reset links.
+6. `src/app/api/auth/callback/route.ts` — GET. Supabase token exchange for the
+   password-reset link.
 
 7. `src/lib/auth/schemas.ts` — Zod bodies for each route.
-   `src/lib/auth/email.ts` — Resend transactional sends for verification and
-   password reset. `import 'server-only'`.
+   `src/lib/auth/email.ts` — Resend transactional send for the password-reset
+   email. `import 'server-only'`.
 
 8. Pages: `src/app/(auth)/signup/page.tsx`, `login/page.tsx`,
    `forgot-password/page.tsx`, `reset-password/page.tsx`. Standard forms so
@@ -471,10 +471,10 @@ GET where only POST is listed, and do not create routes not on that list.
    reset copy states **exactly 12** characters — that number appears in these two
    UI strings and in `password.ts`, nowhere else.
 
-Email verification does NOT gate the chat. A user reaches the full Mizfit Chat
-immediately after signup. Verification is enforced at exactly one place —
-`POST /api/mealplan/generate`, in Prompt 10. Do not add a verification check to
-any route, page, or middleware branch here.
+There is NO email-verification gate in this build (SPEC.md § 3, G-06). Signup
+confirms the address at the auth layer and issues the session directly, so the
+user reaches the full Mizfit Chat immediately. Do not add a verification check to
+any route, page, or middleware branch, here or anywhere else.
 ```
 
 ### Checkpoint 5
@@ -486,7 +486,7 @@ any route, page, or middleware branch here.
 - [ ] A password reset token used twice fails on the second attempt
 - [ ] `POST /api/auth/login` with wrong credentials returns the same message for an unknown email and a known email
 - [ ] The signup and reset pages both display the number 12, and `grep -rn "12 characters" src/` returns only those two strings plus `password.ts`
-- [ ] An unverified user can load `/chat` and complete a chat step — verification blocks nothing outside generation
+- [ ] `grep -rn "email_confirmed\|verif" src/app src/lib` finds no verification branch in any route, page, or component
 
 ## Prompt 6 — App shell, session middleware, health
 
@@ -500,8 +500,8 @@ the health route and CLAUDE.md Rules 12 and 17.
    `src/lib/supabase/middleware.ts` (Prompt 2a). Protect the `(app)` route group:
    an unauthenticated request to a protected path redirects to `/login`. Public
    paths stay public: `/`, the four `(auth)` pages, `/api/auth/*`, and
-   `/api/health`. Do NOT add an email-verification branch here — verification is
-   enforced only at `POST /api/mealplan/generate` (Prompt 10).
+   `/api/health`. Do NOT add an email-verification branch here — this build has
+   no verification gate anywhere (SPEC.md § 3, G-06).
 
 2. `src/app/api/health/route.ts` — GET, unauthenticated liveness probe. Returns
    a minimal ok payload. It must expose no secrets, no env values, no version or
@@ -536,7 +536,7 @@ Prompt 9.
 - [ ] The `/api/health` response body contains no env value, version string, commit sha, or database detail
 - [ ] An unauthenticated `GET /chat` redirects to `/login`; after login the same URL renders
 - [ ] A signed-in user's session survives a page refresh without re-login, proving middleware refresh works
-- [ ] An unverified user can reach every `(app)` page — middleware contains no verification branch
+- [ ] Middleware contains no verification branch — the only redirect is unauthenticated → `/login`
 - [ ] Throwing inside an `(app)` page renders the error boundary with a generic message and no stack trace in the DOM
 - [ ] Tabbing through the nav shows a visible focus ring on each item, and the active item is marked by more than colour
 - [ ] An unknown path renders the custom 404, not the framework default
@@ -764,9 +764,8 @@ or AI_MOCK=1, return the fixture and open NO network connection to Anthropic.
 
 6. `src/app/api/mealplan/generate/route.ts` — POST, body includes
    `cuisine_preferences: string[]` validated against the § 4.7 enum
-   (italian, mexican, asian, mediterranean, american_comfort). **Returns 403 if
-   the user's email is unverified** — the single verification gate in the build.
-   Strictest rate-limit bucket. `src/app/api/mealplan/[planId]/route.ts` — GET.
+   (italian, mexican, asian, mediterranean, american_comfort). No verification
+   gate (SPEC.md § 3, G-06). Strictest rate-limit bucket. `src/app/api/mealplan/[planId]/route.ts` — GET.
 
 7. `src/components/chat/steps/cuisine-step.tsx` (multi-select chips) and
    `generate-step.tsx`, which renders the single combined disclaimer block from
@@ -777,7 +776,7 @@ or AI_MOCK=1, return the fixture and open NO network connection to Anthropic.
 
 - [ ] With `NODE_ENV=development`, generating a plan makes no outbound request to api.anthropic.com — verify with the network disabled
 - [ ] The generated plan has 7 days, each with exactly 3 supper options and one breakfast, lunch, and snack
-- [ ] `POST /api/mealplan/generate` as an unverified user returns **403**; the same call after verification returns 200
+- [ ] The 6th `POST /api/mealplan/generate` within the hour returns 429 — the rate-limit bucket is the only spend guard on this route
 - [ ] `cuisine_preferences: ['french']` returns 400; `['italian','asian']` succeeds; `[]` succeeds
 - [ ] Feeding the validator a malformed model response sets `status='failed'` with `error_message`, writes zero `meal_plan_days` rows, and does not throw
 - [ ] Double-tapping generate for the same week creates one plan, not two — the partial unique index rejects the second
@@ -910,7 +909,7 @@ Provision these before starting the prompt named, or that prompt stalls.
 | Supabase | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` | **2a** (config), live by **3** | No — Prompt 3 needs a real project to apply migrations |
 | App URL | `NEXT_PUBLIC_APP_URL` | **2a** | Yes — `http://localhost:3000` in development |
 | Upstash Redis | `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` | **4** | Yes in development — rate limiting fails OPEN with a warning. **Required live before production**, where it fails closed |
-| Resend | `RESEND_API_KEY` | **5** (verification + reset email) | Placeholder builds, but verification and reset emails will not send |
+| Resend | `RESEND_API_KEY` | **5** (password-reset email) | Placeholder builds; in development the reset link is logged to the server console instead |
 | Anthropic | `ANTHROPIC_API_KEY`, `AI_MODEL` | **10** | Yes for the whole build — dev mode returns the mock and never calls the API. A live key is needed only to exercise the real path |
 | Sentry | `SENTRY_DSN` | **6** (error boundary) | Yes — optional throughout; inert when unset |
 | USDA FoodData Central | `USDA_FDC_API_KEY` | **3b** (optional) | Not needed at all if 3b is skipped |

@@ -89,10 +89,11 @@ middleware. **Password policy: minimum 12 characters with at least one uppercase
 letter, one number, and one symbol.** Enforced server-side on signup and on reset; the exact number
 **12** appears verbatim in the signup and reset UI copy. Stated once in `SPEC.md` § Password Policy —
 never restate it with a different number anywhere.
-**Email verification never gates the chat.** A user reaches and completes the whole Mizfit Chat
-immediately after signup, with no blocking wait on the verification email. Verification is enforced at
-exactly one place: `POST /api/mealplan/generate` returns **403** for an unverified user. Do not add a
-verification check to any other route, page, or middleware branch.
+**There is no email-verification gate in this build** (`SPEC.md` § 3, and G-06 in Appendix B for why
+the earlier design was dropped: Supabase refuses a session to a user whose email is unconfirmed, so
+"signed in but unverified" is not a reachable state). Signup confirms the address and issues the
+session, so the user reaches and completes the whole Mizfit Chat immediately and can generate a plan.
+Do not add a verification check to any route, page, or middleware branch.
 
 **Rule 13 — AI calls are isolated, mocked in dev, and their output is untrusted.**
 Every Anthropic call goes through `src/lib/ai/client.ts`. The model id comes from the `AI_MODEL` env
@@ -147,7 +148,7 @@ Rule 16 does not apply to it.
 | Styling | Tailwind CSS | Fresh Sage tokens only (`SPEC.md` § 11) |
 | UI components | shadcn/ui | Themed to the Fresh Sage palette (`SPEC.md` § 11); WCAG 2.1 AA (§ 11a) |
 | Rate limiting | Upstash Redis | `@upstash/ratelimit` |
-| Transactional email | Resend | Password reset + email verification |
+| Transactional email | Resend | Password reset |
 | AI | Anthropic API | Model id from the `AI_MODEL` env var — see Rule 13 |
 | Validation | Zod | Every API boundary |
 | Error monitoring | Sentry | Optional (`SENTRY_DSN`); scrub PII before send |

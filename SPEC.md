@@ -75,11 +75,12 @@ rather than a simplified stand-in.
 - **Auth stays a standard form, not a chat step:** password fields need real autofill/password-manager
   support, and Rule 12 requires server-side auth routes regardless of how the surrounding UI looks. The
   chat begins immediately after account creation.
-- **Email verification does not gate the chat.** A user enters and uses the full Mizfit Chat
+- **There is no email-verification gate in this build.** A user enters and uses the full Mizfit Chat
   immediately after signup — demographics, calorie target, servings, dietary exclusions, methodology,
-  pantry confirmation, cuisine — with no blocking wait on the verification email. Verification is
-  enforced at exactly one point: `POST /api/mealplan/generate` returns **403** if the user's email is
-  unverified. This keeps a live demo moving while still gating the one endpoint that spends money.
+  pantry confirmation, cuisine — and generates a plan, with no email round-trip anywhere in the flow.
+  Signup confirms the address at the auth layer and issues the session directly. **No route, page, or
+  middleware branch checks verification** (see G-06 below for why the earlier design was dropped). The
+  spend that gate was protecting is held by the `/api/mealplan/generate` rate-limit bucket instead.
 
 ### 3.1 Chat step sequence
 
@@ -446,13 +447,13 @@ to remember to call.
 | Auth | POST | `/api/auth/logout` | |
 | Auth | POST | `/api/auth/forgot-password` | Always returns 200 — never reveals whether the email exists |
 | Auth | POST | `/api/auth/reset-password` | Password policy § 2 |
-| Auth | GET | `/api/auth/callback` | Supabase code exchange (email verification + reset link) |
+| Auth | GET | `/api/auth/callback` | Supabase token exchange for the password-reset link |
 | Profile | PATCH | `/api/profile` | Demographics, activity level, calorie target, diet methodology, servings. The chat's structured steps call this **incrementally**, not as one final submit |
 | Pantry | GET | `/api/pantry` | |
 | Pantry | POST | `/api/pantry` | |
 | Pantry | PATCH | `/api/pantry/[itemId]` | |
 | Pantry | DELETE | `/api/pantry/[itemId]` | |
-| Meal plan | POST | `/api/mealplan/generate` | Body includes `cuisine_preferences: string[]`. The only Anthropic call path. **403 if the user's email is unverified** — the single verification gate (§ 3) |
+| Meal plan | POST | `/api/mealplan/generate` | Body includes `cuisine_preferences: string[]`. The only Anthropic call path. Strictest rate-limit bucket; no verification gate (§ 3) |
 | Meal plan | GET | `/api/mealplan/[planId]` | |
 | Meal plan | POST | `/api/mealplan/[planId]/days/[dayId]/select-supper` | Body: `{ supper_option_index: 0\|1\|2 }` |
 | Meal plan | POST | `/api/mealplan/[planId]/days/[dayId]/approve` | **400 if no supper option selected yet** |
@@ -1011,9 +1012,18 @@ wins** (`CLAUDE.md` Rule 1).
   section therefore agrees with this build rather than contradicting it. The row's second half —
   `README.md` pinning React + Vite + Express — is also closed: README's stack table now reads Next.js
   15.5.24 (App Router) + TypeScript for both frontend and backend, matching **§ 11**.
-- **G-06 — RESOLVED.** Email verification does not gate the chat; it is enforced only at
-  `POST /api/mealplan/generate`, which returns 403 for an unverified user. See **§ 3** (chat bullet) and
-  **§ 6** (route note).
+- **G-06 — RE-RESOLVED before Prompt 5, on a platform finding.** The earlier resolution (chat open,
+  403 at generation for an unverified user) assumed Supabase can hold a session for a user whose email
+  is unconfirmed. It cannot: a password grant for a user with `email_confirmed_at = null` is refused
+  with `400 email_not_confirmed`, and that check does not depend on the project's `enable_confirmations`
+  setting. So "signed in but unverified" is not a state that exists — either verification blocks the
+  chat, or every session-holding user is already verified and the 403 can never fire.
+  **Decision: the verification gate is dropped from this build.** Signup confirms the address and issues
+  the session, the chat and generation are open immediately, and no route checks verification. The
+  Anthropic spend it guarded is held by the generation rate-limit bucket (Prompt 4) and by mandatory dev
+  mocking (Rule 13). Re-adding it later is additive — a service-role-only flag plus one check in
+  `generate` — and is not built now (Rule 16). Password reset still sends a real email through Resend;
+  `/api/auth/callback` still exists for that link. See **§ 3** (chat bullet) and **§ 6** (route notes).
 - **G-10 — RESOLVED, and pulled into Phase 1 scope.** `profiles.dietary_exclusions text[]` added in
   **§ 4.4**, collected by a new multi-select chat step (**§ 3.1**, step 5 — after servings, before
   methodology), and enforced as a hard generation constraint in **§ 8.2b**. No longer deferred.
