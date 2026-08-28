@@ -143,6 +143,12 @@ All tables live in Postgres (Supabase) with **Row-Level Security enabled and wor
 `unique (workspace_id, user_id)`. Index on `(user_id)` — every RLS policy resolves membership through
 this table. Phase 3's 2-person household is a second row here plus an invite flow; nothing migrates.
 
+**"Nothing migrates" applies to membership and auth only — not to the whole household feature.** Adding
+a second member genuinely is a new row here plus an invite flow, with no migration. **Meal generation is
+not additive**: under the Option B2 design recorded in § 12.1, a shared base recipe with per-member
+variants requires a **schema change at the `meal_plan_days` level**, not just a new `workspace_members`
+row. Do not read this paragraph alone and conclude Phase 3 is migration-free.
+
 ### 4.4 `profiles` — core spine (Prompt 3)
 
 Per-person, not per-household (PRD SEC-4: personal tracking data stays private even inside a household).
@@ -692,6 +698,13 @@ One account type for this build, but the schema uses the **workspace pattern** (
 scoping) — a workspace is a household of one owner for now, so Phase 3's 2-person household accounts
 become additive rather than a migration rewrite. See `CLAUDE.md` Rule 5.
 
+**Scope of "additive rather than a migration rewrite": membership and auth specifically.** The
+workspace pattern means a second household member is a `workspace_members` row and an invite flow, with
+no restructuring of ownership or RLS — that claim holds. It does **not** extend to meal generation:
+under the Option B2 design in § 12.1 (one shared base recipe per slot with per-member variants), Phase 3
+requires a **schema change at the `meal_plan_days` level**, not merely a new row. A Phase 3 reader
+should not size the household feature from this section or § 4.3 alone.
+
 ---
 
 ## 11. Tech Stack (pinned)
@@ -784,6 +797,47 @@ Word/.docx export, daily consumption logging, barcode scanning, weight and water
 sharing, two-factor authentication (2FA), and Google OAuth sign-in.
 
 These are Phase 2–4 per the product roadmap, not cut for good.
+
+### 12.1 Phase 3 seam — household multi-member meal generation (DECIDED: Option B2)
+
+**Documentation only. Nothing here is built in Phase 1**, and no Phase 1 prompt, migration, or column
+changes because of it. A workspace has exactly one member in this build, so no code path exercises any
+of this. It is recorded now so Phase 3 does not have to reconstruct the intent.
+
+**DECISION — one shared meal per slot per day, not independent plans per member.**
+The generator produces a **single base recipe per slot** (breakfast, lunch, snack, and each of the 3
+supper options), then layers **per-member variants** on top only where methodologies or dietary
+exclusions genuinely conflict. A variant is either:
+
+- a **substitution** — e.g. a plant-based protein swap for a Vegetarian member where the others get
+  chicken; or
+- a **portion / side adjustment** — e.g. a smaller starch portion for a member whose macro target that
+  day calls for lower carbs.
+
+**This is not Prompt 10's generation logic run twice.** It is a harder generation problem with a
+different shape: base recipe first, then per-member deltas against it. Phase 3 must budget for that
+complexity rather than assuming it is additive on top of Phase 1's single-member generator.
+
+**CROSS-MEMBER PRECEDENCE — extends § 8.6a to multi-member.**
+
+1. **Dietary exclusions stay absolute, checked per-member.** An exclusion is never overridden to keep a
+   base recipe "shared." If one member cannot eat it, the base recipe does not contain it — regardless
+   of what every other member can eat. This is level 1 of § 8.6a and multi-member does not soften it.
+2. **Below that, the base recipe satisfies as many members' methodology macros as is mathematically
+   possible.**
+3. **Where two methodologies produce genuinely incompatible macro targets for a slot** — e.g. one
+   member's carb-cycling Sunday high-carb target against another's fixed low-carb split — the base
+   recipe follows **whichever member's constraint is more restrictive for that nutrient**, and the
+   less-restricted member's variant **adds back** what they need (an extra side, a larger portion).
+   The base is never diluted into a compromise that satisfies neither person's actual target.
+
+**SCHEMA IMPLICATION — unresolved design work, not a decided structure.**
+`meal_plan_days` will likely need a **`base_recipe`** field plus a **per-member variants** structure
+(member `user_id`, the substitution or portion delta, and the adjusted macros). Note what this rules
+out: a full independent-plan-per-member model (**Option B1**, not chosen) would have needed only a
+widening of `meal_plans`' unique constraint to include `user_id`. **B2 does not — it needs a different
+shape at the `meal_plan_days` level, not just at `meal_plans`.** Whoever picks up Phase 3 owns that
+design; it is explicitly **not settled here**, and the columns in § 4.8 are Phase 1's shape, unchanged.
 
 ---
 
