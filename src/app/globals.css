@@ -1,0 +1,33 @@
+/*
+ * Placeholder stylesheet.
+ *
+ * Prompt 2b owns the design system: it adds tailwind.config.ts, the PostCSS
+ * wiring, and the Fresh Sage tokens from SPEC.md § 11, and replaces the
+ * literal values below with those tokens. Nothing here invents a palette.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    sans-serif;
+  line-height: 1.5;
+}
+
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
