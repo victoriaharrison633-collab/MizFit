@@ -17,11 +17,23 @@ import { z } from 'zod'
 /** The Anthropic model id. Stated once here; never hardcoded at a call site (Rule 13). */
 const DEFAULT_AI_MODEL = 'claude-sonnet-5'
 
+/**
+ * Trailing slashes are stripped from every URL.
+ *
+ * A `NEXT_PUBLIC_SUPABASE_URL` ending in `/` produces `https://host//auth/v1/...`,
+ * which Supabase's gateway rejects with "Invalid path specified in request URL"
+ * — and because the login route maps every auth failure to one generic message,
+ * that looks like "wrong password" rather than a misconfigured URL. It cost this
+ * build a deployment's worth of debugging, so it is normalised here instead of
+ * being left to whoever pastes the value into a dashboard.
+ */
+const urlWithoutTrailingSlash = z.url().transform((value) => value.replace(/\/+$/, ''))
+
 const clientSchema = z.object({
   // REQUIRED
-  NEXT_PUBLIC_SUPABASE_URL: z.url(),
+  NEXT_PUBLIC_SUPABASE_URL: urlWithoutTrailingSlash,
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  NEXT_PUBLIC_APP_URL: z.url(),
+  NEXT_PUBLIC_APP_URL: urlWithoutTrailingSlash,
 })
 
 const serverSchema = z.object({

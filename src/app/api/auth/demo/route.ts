@@ -46,11 +46,7 @@ export const POST = withPublicApiHandler(
 
     if (createError) {
       throw new ApiError('INTERNAL', {
-        // TEMPORARY DEBUG — this deliberately returns the database's own error
-        // to the client, which Rule 7 forbids. It is here because the hosted
-        // failure could not be reproduced locally and the server logs were not
-        // reachable. REVERT THIS as soon as the cause is known.
-        publicMessage: `DEBUG createUser: ${createError.message}`,
+        publicMessage: 'The demo could not start. Please try again in a moment.',
         detail: `demo createUser failed: ${createError.message}`,
         cause: createError,
       })
@@ -61,9 +57,8 @@ export const POST = withPublicApiHandler(
       try {
         await provisionWorkspace(created.user.id, created.user.email ?? email)
       } catch (thrown) {
-        // TEMPORARY DEBUG — revert with the others.
         throw new ApiError('INTERNAL', {
-          publicMessage: `DEBUG provision: ${thrown instanceof Error ? thrown.message : 'unknown'}`,
+          publicMessage: 'The demo could not start. Please try again in a moment.',
           detail: `demo provisioning failed: ${thrown instanceof Error ? thrown.message : 'unknown'}`,
           cause: thrown,
         })
@@ -74,8 +69,7 @@ export const POST = withPublicApiHandler(
 
     if (signInError) {
       throw new ApiError('INTERNAL', {
-        // TEMPORARY DEBUG — see above. Revert with the other one.
-        publicMessage: `DEBUG signIn: ${signInError.message}`,
+        publicMessage: 'The demo could not start. Please try again in a moment.',
         detail: `demo sign-in failed: ${signInError.message}`,
         cause: signInError,
       })
